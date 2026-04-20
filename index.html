@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pipeline Purging Safety Assessment — Cruz</title>
+<style>
+  :root{--bg:#0f1117;--surface:#1a1d27;--surface2:#22263a;--border:#2e3350;--accent:#4f8ef7;--accent2:#38d9a9;--warn:#f7a84f;--text:#e4e8f5;--muted:#7a82a6;--safe:#38d9a9;--unsafe:#f75f5f}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:2rem 1rem}
+  .container{max-width:900px;margin:0 auto}
+  header{text-align:center;margin-bottom:2.5rem}
+  header h1{font-size:1.8rem;font-weight:700;color:var(--accent);margin-bottom:.4rem}
+  header p{color:var(--muted);font-size:.9rem}
+  header .subtitle{font-size:1rem;color:var(--text);margin-top:.3rem;font-style:italic}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.6rem;margin-bottom:1.5rem}
+  .card h2{font-size:1rem;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:1.2rem;display:flex;align-items:center;gap:.5rem}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+  @media(max-width:600px){.grid-2{grid-template-columns:1fr}}
+  .field label{display:block;font-size:.82rem;color:var(--muted);margin-bottom:.4rem;font-weight:500}
+  .field input,.field select{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:.6rem .9rem;font-size:1rem;transition:border-color .2s;outline:none}
+  .field input:focus,.field select:focus{border-color:var(--accent)}
+  .field .hint{font-size:.75rem;color:var(--muted);margin-top:.3rem}
+
+  /* verdict */
+  .verdict-box{border-radius:12px;padding:1.4rem 1.6rem;margin-bottom:1.5rem;border:2px solid}
+  .verdict-box.safe{background:#0d2b22;border-color:var(--safe)}
+  .verdict-box.unsafe{background:#2b0d0d;border-color:var(--unsafe)}
+  .verdict-box.borderline{background:#1a1506;border-color:var(--warn)}
+  .verdict-title{font-size:1.3rem;font-weight:700;margin-bottom:.4rem}
+  .verdict-box.safe .verdict-title{color:var(--safe)}
+  .verdict-box.unsafe .verdict-title{color:var(--unsafe)}
+  .verdict-box.borderline .verdict-title{color:var(--warn)}
+  .verdict-sub{font-size:.95rem;color:var(--text);line-height:1.5}
+
+  /* ── progress bar ── */
+  .bar-section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.4rem 1.6rem;margin-bottom:1.5rem}
+  .bar-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.5rem}
+  .bar-title{font-size:.9rem;font-weight:600;color:var(--text)}
+  .bar-pct{font-size:.82rem;color:var(--muted)}
+  .bar-wrap{position:relative;height:36px;margin-top:36px;margin-bottom:36px}
+  .bar-track{
+    position:absolute;left:0;top:0;bottom:0;width:100%;
+    background:linear-gradient(180deg,#252b3d 0%,#131720 35%,#131720 65%,#252b3d 100%);
+    border-radius:0;
+    border-top:2px solid #3d4560;
+    border-bottom:2px solid #0a0c14;
+    overflow:hidden
+  }
+  .bar-track::after{
+    content:'';position:absolute;left:0;right:0;top:0;height:4px;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);
+    pointer-events:none
+  }
+  .bar-seg-green{
+    position:absolute;left:0;top:0;bottom:0;
+    background:linear-gradient(180deg,#5effc0 0%,#21c47e 30%,#148050 70%,#1fd98a 100%);
+    transition:width .4s cubic-bezier(.4,0,.2,1)
+  }
+  .bar-seg-red{
+    position:absolute;top:0;bottom:0;
+    background:linear-gradient(180deg,#ff8080 0%,#d42020 30%,#8c0e0e 70%,#e03535 100%);
+    transition:left .4s cubic-bezier(.4,0,.2,1),width .4s cubic-bezier(.4,0,.2,1)
+  }
+  .bar-xddt-line{
+    position:absolute;top:-8px;bottom:-8px;width:3px;
+    background:#f75050;transform:translateX(-50%);z-index:4;
+    transition:left .4s cubic-bezier(.4,0,.2,1)
+  }
+  .bar-xddt-line::after{
+    content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);
+    margin-top:4px;
+    border-left:5px solid transparent;border-right:5px solid transparent;
+    border-top:6px solid #f75050
+  }
+  .bar-xddt-label{
+    position:absolute;top:calc(100% + 14px);
+    left:50%;transform:translateX(-50%);
+    font-size:.7rem;font-weight:700;color:#f75050;white-space:nowrap
+  }
+  .bar-lflam-line{
+    position:absolute;top:-8px;bottom:-8px;width:3px;
+    transform:translateX(-50%);z-index:4;
+    transition:left .4s cubic-bezier(.4,0,.2,1)
+  }
+  .bar-lflam-line::before{
+    content:'';position:absolute;bottom:100%;left:50%;transform:translateX(-50%);
+    margin-bottom:4px;
+    border-left:5px solid transparent;border-right:5px solid transparent;
+    border-bottom:6px solid currentColor
+  }
+  .bar-lflam-label{
+    position:absolute;bottom:calc(100% + 14px);
+    left:50%;transform:translateX(-50%);
+    font-size:.7rem;font-weight:700;white-space:nowrap
+  }
+  .bar-lflam-line.safe{background:var(--safe);color:var(--safe)}
+  .bar-lflam-line.unsafe{background:var(--unsafe);color:var(--unsafe)}
+  .bar-lflam-line.borderline{background:var(--warn);color:var(--warn)}
+  .bar-lflam-label.safe{color:var(--safe)}
+  .bar-lflam-label.unsafe{color:var(--unsafe)}
+  .bar-lflam-label.borderline{color:var(--warn)}
+  .bar-labels{display:flex;justify-content:space-between;font-size:.78rem;margin-top:.2rem}
+  .lflam-lbl{font-weight:700}
+  .lflam-lbl.safe{color:var(--safe)}
+  .lflam-lbl.unsafe{color:var(--unsafe)}
+  .lflam-lbl.borderline{color:var(--warn)}
+  .xddt-lbl{color:#f75050;font-weight:600}
+
+  /* results grid */
+  .results-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:1rem;margin-bottom:1.5rem}
+  .result-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem 1.2rem}
+  .r-label{font-size:.78rem;color:var(--muted);margin-bottom:.3rem}
+  .r-value{font-size:1.2rem;font-weight:700;color:var(--accent2)}
+  .r-unit{font-size:.78rem;color:var(--muted);margin-top:.1rem}
+
+  table{width:100%;border-collapse:collapse;font-size:.88rem}
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  @media(max-width:600px){table{font-size:.78rem}}
+  th{background:var(--surface2);color:var(--muted);font-weight:600;text-align:center;padding:.6rem .5rem;border-bottom:1px solid var(--border);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}
+  td{padding:.55rem .5rem;text-align:center;border-bottom:1px solid var(--border);color:var(--text)}
+  tr:hover td{background:var(--surface2)}
+  td.highlight{color:var(--accent2);font-weight:700}
+  td.safe-cell{color:var(--safe);font-weight:600}
+  td.warn-cell{color:var(--warn);font-weight:600}
+
+  .params-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;font-size:.85rem}
+  @media(max-width:600px){.params-grid{grid-template-columns:1fr}}
+  .param-item{background:var(--surface2);border-radius:7px;padding:.6rem .9rem;display:flex;justify-content:space-between;align-items:center;gap:.5rem}
+  .p-name{color:var(--muted);font-size:.8rem}
+  .p-val{color:var(--text);font-weight:600;font-size:.85rem}
+
+  .note{background:var(--surface2);border-left:3px solid var(--warn);border-radius:0 8px 8px 0;padding:.8rem 1rem;font-size:.82rem;color:var(--muted);line-height:1.5;margin-top:1rem}
+  .eq-block{background:var(--surface2);border-radius:8px;padding:.9rem 1.2rem;font-family:'Courier New',monospace;font-size:.82rem;color:var(--accent2);margin-top:.7rem;line-height:1.8;overflow-x:auto}
+
+  .step-trace .step{display:flex;gap:1rem;align-items:flex-start;margin-bottom:.7rem}
+  .step-n{background:var(--accent);color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;flex-shrink:0;margin-top:.1rem}
+  .step-body{font-size:.85rem;color:var(--text);line-height:1.5}
+  .step-body span{color:var(--accent2);font-weight:600}
+
+  .tab-bar{display:flex;gap:.5rem;margin-bottom:1.2rem;border-bottom:1px solid var(--border);padding-bottom:.7rem}
+  .tab-btn{background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);padding:.4rem .9rem;font-size:.82rem;cursor:pointer;transition:all .2s}
+  .tab-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .tab-panel{display:none}
+  .tab-panel.active{display:block}
+
+  footer{text-align:center;margin-top:2rem;font-size:.78rem;color:var(--muted);line-height:1.7}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Pipeline Purging Safety Assessment</h1>
+    <div class="subtitle">Direct Purge or Inert Slug?</div>
+    <p>Silvestrini DDT Correlation · Basha &amp; Malaeb Dispersion Model · AGA Velocity</p>
+    <p style="margin-top:.4rem">Johann Cruz · Senior Process Engineer · April 2026</p>
+  </header>
+
+  <div class="card">
+    <h2>⚙️ Input Parameters</h2>
+    <div class="grid-2">
+      <div class="field">
+        <label>Pipe Diameter D</label>
+        <select id="dSelect" oninput="onDiamChange()">
+          <option value="custom">Custom...</option>
+          <option value="6">6 inches</option><option value="8">8 inches</option>
+          <option value="10">10 inches</option><option value="12">12 inches</option>
+          <option value="16">16 inches</option><option value="20">20 inches</option>
+          <option value="24" selected>24 inches</option><option value="30">30 inches</option>
+          <option value="34">34 inches</option><option value="36">36 inches</option>
+          <option value="42">42 inches</option><option value="48">48 inches</option>
+        </select>
+      </div>
+      <div class="field" id="customDField" style="display:none">
+        <label>Custom Diameter (inches)</label>
+        <input type="number" id="dCustom" value="24" min="1" max="120" step="0.5" oninput="calculate()">
+      </div>
+      <div class="field">
+        <label>Pipe Segment Length L<sub>pipe</sub> (m)</label>
+        <input type="number" id="lpipe" value="5000" min="1" step="100" oninput="calculate()">
+      </div>
+      <div class="field">
+        <label>Blockage Ratio BR</label>
+        <input type="number" id="br" value="0.1" min="0" max="0.9" step="0.01" oninput="calculate()">
+        <div class="hint">0.1 = minor fittings (default) · 0 = smooth bore</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VERDICT -->
+  <div class="verdict-box safe" id="verdictBox">
+    <div class="verdict-title" id="verdictTitle"></div>
+    <div class="verdict-sub" id="verdictSub"></div>
+  </div>
+
+  <!-- PROGRESS BAR -->
+  <div class="bar-section">
+    <div class="bar-top" style="margin-bottom:1.8rem">
+      <span class="bar-title">L<sub>flam</sub> vs X<sub>DDT</sub></span>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track">
+        <div class="bar-seg-green" id="barGreen" style="width:0%"></div>
+        <div class="bar-seg-red"   id="barRed"   style="left:0%;width:0%"></div>
+      </div>
+      <!-- L_flam marker — notch pointing DOWN from above the bar -->
+      <div class="bar-lflam-line safe" id="barLflamLine" style="left:30%">
+        <div class="bar-lflam-label safe" id="barLflamLineLabel">L<sub>flam</sub> = —</div>
+      </div>
+      <!-- X_DDT marker — notch pointing UP from below the bar -->
+      <div class="bar-xddt-line" id="barXddtLine" style="left:50%">
+        <div class="bar-xddt-label">X<sub>DDT</sub> = —</div>
+      </div>
+    </div>
+
+    <div style="margin-top:.5rem;font-size:.75rem;color:var(--muted);text-align:center">
+      L<sub>flam</sub> / X<sub>DDT</sub> = <span id="barPct" style="color:var(--text);font-weight:600"></span>
+    </div>
+  </div>
+
+  <!-- RESULTS GRID -->
+  <div class="results-grid">
+    <div class="result-item"><div class="r-label">Reynolds Number Re</div><div class="r-value" id="rRe">—</div><div class="r-unit">—</div></div>
+    <div class="result-item"><div class="r-label">Dispersion Coeff D<sub>e</sub></div><div class="r-value" id="rDe">—</div><div class="r-unit">m²/s</div></div>
+    <div class="result-item"><div class="r-label">X<sub>DDT</sub></div><div class="r-value" id="rXddt">—</div><div class="r-unit">m / ft</div></div>
+    <div class="result-item"><div class="r-label">L<sub>safe</sub></div><div class="r-value" id="rLsafe">—</div><div class="r-unit">m / ft</div></div>
+    <div class="result-item"><div class="r-label">L<sub>pipe</sub></div><div class="r-value" id="rLpipe">—</div><div class="r-unit">m / ft</div></div>
+    <div class="result-item"><div class="r-label">Margin L<sub>safe</sub> / L<sub>pipe</sub></div><div class="r-value" id="rMargin">—</div><div class="r-unit">ratio (&gt;1.0 = safe)</div></div>
+  </div>
+
+  <!-- STEP TRACE -->
+  <div class="card step-trace" id="stepTrace" style="display:none">
+    <h2>🔢 Calculation Trace</h2>
+    <div id="traceContent"></div>
+  </div>
+
+  <!-- TABS -->
+  <div class="card">
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="showTab('tabTable',this)">All Pipe Sizes</button>
+      <button class="tab-btn" onclick="showTab('tabParams',this)">Fixed Parameters</button>
+      <button class="tab-btn" onclick="showTab('tabEqs',this)">Equations</button>
+    </div>
+    <div class="tab-panel active" id="tabTable">
+      <div class="table-wrap"><table><thead><tr>
+        <th>D (in)</th><th>V<sub>purge</sub> (ft/s)</th>
+        <th>Re</th><th>X<sub>DDT</sub> (m)</th>
+        <th>L<sub>safe</sub> (m)</th><th>L<sub>safe</sub> (ft)</th>
+      </tr></thead><tbody id="tableBody"></tbody></table></div>
+      <div class="note">L<sub>safe</sub> increases with diameter. Results for 6″–10″ should be treated with additional caution: D<sub>e</sub>/(Vd) falls marginally below 0.1, the lower bound of the Basha &amp; Malaeb correlation validity range.</div>
+    </div>
+    <div class="tab-panel" id="tabParams">
+      <div class="params-grid">
+        <div class="param-item"><span class="p-name">ν (kinematic viscosity)</span><span class="p-val">1.56 × 10⁻⁵ m²/s</span></div>
+        <div class="param-item"><span class="p-name">S<sub>L</sub> (laminar burning velocity)</span><span class="p-val">0.374 m/s</span></div>
+        <div class="param-item"><span class="p-name">V<sub>CJ</sub> (CJ detonation velocity)</span><span class="p-val">1,800 m/s</span></div>
+        <div class="param-item"><span class="p-name">σ (expansion ratio)</span><span class="p-val">7.5</span></div>
+        <div class="param-item"><span class="p-name">LFL / UFL (methane in air)</span><span class="p-val">5% / 15% vol</span></div>
+        <div class="param-item"><span class="p-name">A<sub>1</sub> + A<sub>2</sub> (Basha mixing const.)</span><span class="p-val">4.36</span></div>
+        <div class="param-item"><span class="p-name">A<sub>eff</sub> (corrected coefficient)</span><span class="p-val">0.4031</span></div>
+        <div class="param-item"><span class="p-name">V<sub>purge</sub></span><span class="p-val">0.843 × D<sup>0.508</sup> ft/s</span></div>
+        <div class="param-item"><span class="p-name">V<sub>slug</sub></span><span class="p-val">52 × √D ft/min</span></div>
+      </div>
+      <div class="note" style="margin-top:1rem">
+        <strong style="color:var(--warn)">Constant rationale:</strong><br>
+        (1) S<sub>L</sub>, V<sub>CJ</sub>, σ — stoichiometric worst-case; actual purge mixtures leaner/richer → longer X<sub>DDT</sub> → conservative bound.<br>
+        (2) ν varies ±5% over 280–320 K at 1 atm → negligible effect on Re and D<sub>e</sub>.<br>
+        (3) BR = 0.1 — conservative for minor internal fittings; higher BR reduces X<sub>DDT</sub> further.<br>
+        (4) LFL/UFL (5%/15%) — methane limits at 1 atm ambient (NFPA 54, GPA); temperature sensitivity &lt;0.5 pp over operating range.
+      </div>
+    </div>
+    <div class="tab-panel" id="tabEqs">
+      <p style="font-size:.88rem;color:var(--muted);margin-bottom:.8rem">Silvestrini et al. (2008), Basha &amp; Malaeb (2007), AGA Purging Principles and Practice.</p>
+      <div class="eq-block">
+[X/D]_DDT = 1/(0.006·(σ−1)) · (0.15/D)^0.4 · ln(0.077·V_CJ/(σ·S_L)) · 1/(1+15·BR)   [Eq 1a]
+X_DDT = [X/D]_DDT · D                                                                     [Eq 1b]
+
+L_flam = A_eff · sqrt(D_e · t),   where  t = L_pipe / V_slug                             [Eq 2d]
+A_eff = 0.1849 × 2.18 = 0.4031   (LFL–UFL fraction of erf profile)                      [Eq 2c]
+L_safe = X_DDT² · V_slug / (A_eff² · D_e)                                                [Eq 2e]
+
+log10[(D_e/(V_purge·d) − 0.03)/0.1] = (68 + 18·((Re−1000)/1000)^−3) · exp(−log10(Re)^1.1)  [Eq 3]
+Re = V_purge · d / ν
+
+V_purge = 0.843 · D^0.508  ft/s  (D in inches)                                           [Eq 4a]
+V_slug  = 52 · √D           ft/min                                                        [Eq 4b]
+      </div>
+      <div class="note">Criterion: L<sub>flam</sub> &lt; X<sub>DDT</sub> → direct purge safe. L<sub>flam</sub> ≥ X<sub>DDT</sub> → nitrogen inert slug required. At L<sub>pipe</sub> = L<sub>safe</sub>, L<sub>flam</sub> = X<sub>DDT</sub> exactly (boundary — slug required).</div>
+    </div>
+  </div>
+
+  <div class="note" style="background:var(--surface);border-color:var(--muted);border-radius:8px;border-left-width:3px">
+    Screening tool only. Does not replace QRA or compliance with ASME B31.8, IGE/TD/1, AGA Purging Principles and Practice, or operator-specific procedures. Valid for natural gas (predominantly methane) transmission pipelines, 6″–48″, near-atmospheric pressure purging with air.
+  </div>
+
+  <footer>
+    Pipeline Purging Safety Assessment — Johann Cruz, Senior Process Engineer — April 2026<br>
+    Based on: Silvestrini et al. (2008) J. Loss Prev. Process Ind. 21(5); Basha &amp; Malaeb (2007); Schley et al. (2004); AGA Purging Principles and Practice 3rd Ed.
+  </footer>
+</div>
+
+<script>
+const NU=1.56e-5,SL=0.374,VCJ=1800,SIGMA=7.5,AEFF=0.4031;
+const FPS_MS=0.3048,FPM_MS=0.00508,IN_M=0.0254;
+const BORDERLINE_TOL=0.001; // within 0.1% of X_DDT = show borderline
+
+function calcForDiameter(D_in,BR){
+  const d=D_in*IN_M;
+  const Vp_fps=0.843*Math.pow(D_in,0.508);
+  const Vs_fpm=52*Math.sqrt(D_in);
+  const Vp=Vp_fps*FPS_MS, Vs=Vs_fpm*FPM_MS;
+  const Re=Vp*d/NU;
+  const log10Re=Math.log10(Re);
+  const RHS=(68+18*Math.pow((Re-1000)/1000,-3))*Math.exp(-Math.pow(log10Re,1.1));
+  const De=(Math.pow(10,RHS)*0.1+0.03)*(Vp*d);
+  const t1=1/(0.006*(SIGMA-1)),t2=Math.pow(0.15/d,0.4);
+  const t3=Math.log(0.077*VCJ/(SIGMA*SL)),t4=1/(1+15*BR);
+  const XD=t1*t2*t3*t4, Xddt=XD*d;
+  const Lsafe=(Xddt*Xddt*Vs)/(AEFF*AEFF*De);
+  return{D_in,d,Vp_fps,Vs_fpm,Vp,Vs,Re,De,Xddt,Lsafe,t1,t2,t3,t4,XD};
+}
+
+function fmt(n,dp=2){return n.toLocaleString('en-US',{minimumFractionDigits:dp,maximumFractionDigits:dp})}
+function fmtInt(n){return Math.round(n).toLocaleString('en-US')}
+
+function onDiamChange(){
+  document.getElementById('customDField').style.display=
+    document.getElementById('dSelect').value==='custom'?'block':'none';
+  calculate();
+}
+
+function calculate(){
+  const sel=document.getElementById('dSelect').value;
+  const D_in=sel==='custom'?parseFloat(document.getElementById('dCustom').value):parseFloat(sel);
+  const Lpipe=parseFloat(document.getElementById('lpipe').value);
+  const BR=parseFloat(document.getElementById('br').value);
+  if(isNaN(D_in)||isNaN(Lpipe)||isNaN(BR))return;
+
+  const r=calcForDiameter(D_in,BR);
+  const t=Lpipe/r.Vs;
+  const Lflam=AEFF*Math.sqrt(r.De*t);
+
+  // Boundary condition: at Lpipe = Lsafe, Lflam = Xddt exactly.
+  // Criterion (paper): safe only if Lflam STRICTLY < Xddt.
+  const ratio=Lflam/r.Xddt;
+  const isBorderline=Math.abs(ratio-1)<BORDERLINE_TOL;
+  const isSafe=!isBorderline&&(Lflam<r.Xddt);
+
+  // ── progress bar ──
+  // Scale: fit both Lflam and Xddt, add 10% headroom
+  const barMax=Math.max(Lflam,r.Xddt)*1.1;
+  const xddtPct=(r.Xddt/barMax)*100;         // where X_DDT line sits
+  const greenPct=(Math.min(Lflam,r.Xddt)/barMax)*100; // green up to min(Lflam,Xddt)
+  const redLeft=xddtPct;                       // red starts at X_DDT
+  const redWidth=isSafe||isBorderline?0:((Lflam-r.Xddt)/barMax)*100;
+
+  const cls=isBorderline?'borderline':isSafe?'safe':'unsafe';
+
+  document.getElementById('barGreen').style.width=greenPct+'%';
+  document.getElementById('barRed').style.left=redLeft+'%';
+  document.getElementById('barRed').style.width=redWidth+'%';
+
+  // X_DDT marker (below bar)
+  document.getElementById('barXddtLine').style.left=xddtPct+'%';
+  document.getElementById('barXddtLine').querySelector('.bar-xddt-label').innerHTML=
+    'X<sub>DDT</sub> = '+fmt(r.Xddt,1)+' m';
+
+  // L_flam marker (above bar) — sits at its own position
+  const lflamLine=document.getElementById('barLflamLine');
+  const lflamLineLabel=document.getElementById('barLflamLineLabel');
+  const lflamPct=(Math.min(Lflam,barMax)/barMax)*100;
+  lflamLine.style.left=lflamPct+'%';
+  lflamLine.className='bar-lflam-line '+cls;
+  lflamLineLabel.className='bar-lflam-label '+cls;
+  lflamLineLabel.innerHTML='L<sub>flam</sub> = '+fmt(Lflam,1)+' m';
+
+  // ratio label top-right — plain ASCII, no unicode subscripts
+  document.getElementById('barPct').textContent=
+    fmt(ratio,3)+' ('+fmt(ratio*100,1)+'% of threshold)';
+
+  // ── verdict ──
+  const vbox=document.getElementById('verdictBox');
+  const margin=r.Lsafe/Lpipe;
+  if(isBorderline){
+    vbox.className='verdict-box borderline';
+    document.getElementById('verdictTitle').textContent='⚠️  Boundary — Nitrogen Slug Required';
+    document.getElementById('verdictSub').innerHTML=
+      `L<sub>flam</sub> = ${fmt(Lflam,1)} m ≈ X<sub>DDT</sub> = ${fmt(r.Xddt,1)} m. `+
+      `This is the exact design limit. The criterion requires L<sub>flam</sub> strictly &lt; X<sub>DDT</sub>. Insert a nitrogen inert slug.`;
+  } else if(isSafe){
+    vbox.className='verdict-box safe';
+    document.getElementById('verdictTitle').textContent='✅  Direct Purge is SAFE';
+    document.getElementById('verdictSub').innerHTML=
+      `L<sub>flam</sub> = ${fmt(Lflam,1)} m &lt; X<sub>DDT</sub> = ${fmt(r.Xddt,1)} m. `+
+      `The flammable mixed zone stays below the DDT threshold throughout the purge. `+
+      `Safety margin (L<sub>safe</sub>/L<sub>pipe</sub>): ${fmt(margin,2)}×.`;
+  } else {
+    vbox.className='verdict-box unsafe';
+    document.getElementById('verdictTitle').textContent='⛔  Nitrogen Inert Slug REQUIRED';
+    document.getElementById('verdictSub').innerHTML=
+      `L<sub>flam</sub> = ${fmt(Lflam,1)} m &gt; X<sub>DDT</sub> = ${fmt(r.Xddt,1)} m. `+
+      `The flammable mixed zone exceeds the DDT run-up distance before the purge completes. `+
+      `Insert a nitrogen buffer slug between gas and air.`;
+  }
+
+  // ── results grid ──
+  document.getElementById('rRe').textContent=fmtInt(r.Re);
+  document.getElementById('rDe').textContent=fmt(r.De,4);
+  document.getElementById('rXddt').textContent=fmt(r.Xddt,2)+' / '+fmt(r.Xddt/0.3048,1);
+  document.getElementById('rLsafe').textContent=fmtInt(r.Lsafe)+' / '+fmtInt(r.Lsafe/0.3048);
+  document.getElementById('rLpipe').textContent=fmtInt(Lpipe)+' / '+fmtInt(Lpipe/0.3048);
+  document.getElementById('rMargin').textContent=fmt(margin,2);
+
+  // ── step trace ──
+  document.getElementById('stepTrace').style.display='block';
+  const rel=isBorderline?'= (boundary)':isSafe?'< (safe)':'> (unsafe)';
+  document.getElementById('traceContent').innerHTML=`
+    <div class="step"><div class="step-n">1</div><div class="step-body">
+      V<sub>purge</sub> = 0.843×${D_in}<sup>0.508</sup> = <span>${fmt(r.Vp_fps,3)} ft/s = ${fmt(r.Vp,4)} m/s</span><br>
+      V<sub>slug</sub> = 52×√${D_in} = <span>${fmt(r.Vs_fpm,1)} ft/min = ${fmt(r.Vs,4)} m/s</span>
+    </div></div>
+    <div class="step"><div class="step-n">2</div><div class="step-body">
+      Re = ${fmt(r.Vp,4)} × ${fmt(r.d,4)} / 1.56×10⁻⁵ = <span>${fmtInt(r.Re)}</span> ${r.Re>2000?'✓ Valid (Re > 2,000)':'⚠ Re < 2,000'}
+    </div></div>
+    <div class="step"><div class="step-n">3</div><div class="step-body">
+      D<sub>e</sub> (Basha &amp; Malaeb Eq 3): <span>${fmt(r.De,4)} m²/s</span>
+    </div></div>
+    <div class="step"><div class="step-n">4</div><div class="step-body">
+      Silvestrini: ${fmt(r.t1,4)} × ${fmt(r.t2,4)} × ${fmt(r.t3,4)} × ${fmt(r.t4,4)} = [X/D]<sub>DDT</sub> = <span>${fmt(r.XD,3)}</span><br>
+      X<sub>DDT</sub> = <span>${fmt(r.Xddt,3)} m = ${fmt(r.Xddt/0.3048,1)} ft</span>
+    </div></div>
+    <div class="step"><div class="step-n">5</div><div class="step-body">
+      t = ${fmtInt(Lpipe)} / ${fmt(r.Vs,4)} = <span>${fmtInt(t)} s</span> →
+      L<sub>flam</sub> = 0.4031 × √(${fmt(r.De,4)} × ${fmtInt(t)}) = <span>${fmt(Lflam,2)} m</span>
+    </div></div>
+    <div class="step"><div class="step-n">6</div><div class="step-body">
+      L<sub>flam</sub> ${rel} X<sub>DDT</sub> →
+      ${isBorderline
+        ?'<span style="color:var(--warn)">BOUNDARY — SLUG REQUIRED</span>'
+        :isSafe
+          ?'<span style="color:var(--safe)">DIRECT PURGE SAFE</span>'
+          :'<span style="color:var(--unsafe)">NITROGEN SLUG REQUIRED</span>'}
+    </div></div>`;
+
+  buildTable(D_in,BR);
+}
+
+function buildTable(highlightD,BR){
+  BR=BR!==undefined?BR:parseFloat(document.getElementById('br').value)||0.1;
+  const sizes=[6,8,10,12,16,20,24,30,34,36,42,48];
+  let rows='';
+  for(const d of sizes){
+    const r=calcForDiameter(d,BR);
+    const hl=Math.abs(d-highlightD)<0.01, sm=d<=10;
+    rows+=`<tr>
+      <td ${hl?'style="background:var(--surface2)"':''}>${d}"</td>
+      <td>${fmt(r.Vp_fps,2)}</td>
+      <td>${fmtInt(r.Re)}</td><td>${fmt(r.Xddt,1)}</td>
+      <td class="${sm?'warn-cell':'safe-cell'}${hl?' highlight':''}">${fmtInt(r.Lsafe)}</td>
+      <td class="${sm?'warn-cell':'safe-cell'}">${fmtInt(r.Lsafe/0.3048)}</td>
+    </tr>`;
+  }
+  document.getElementById('tableBody').innerHTML=rows;
+}
+
+function showTab(id,btn){
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+}
+
+buildTable(24,0.1);
+calculate();
+</script>
+</body>
+</html>
