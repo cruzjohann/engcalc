@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fluid Property Flash Calculator — Cruz</title>
+<style>
+  :root{--bg:#f4f6fa;--surface:#fff;--surface2:#f1f4f9;--border:#d8deea;--accent:#2563c9;--accent-soft:#eaf1fd;--accent2:#0a7f62;--warn:#b86e00;--text:#1b2233;--muted:#5d6782;--unsafe:#c62f2f;
+    --liq:#2563c9;--vap:#b86e00;--tp:#7046c8;--sc:#0a7f62}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:1.6rem 1rem 2rem}
+  .container{max-width:1180px;margin:0 auto}
+  header{text-align:center;margin-bottom:1.6rem}
+  header h1{font-size:1.65rem;font-weight:700;color:var(--accent);margin-bottom:.3rem}
+  header p{color:var(--muted);font-size:.88rem}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.3rem 1.4rem;margin-bottom:1.2rem;box-shadow:0 1px 3px rgba(20,30,60,.05)}
+  .card h2{font-size:.85rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:1rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+  .card h2 .right{margin-left:auto;display:flex;gap:.5rem;text-transform:none;letter-spacing:0;font-weight:400}
+  .main{display:grid;grid-template-columns:380px 1fr;gap:1.2rem;align-items:start}
+  @media(max-width:900px){.main{grid-template-columns:1fr}}
+  .main .card{margin-bottom:0}
+  .mb{margin-bottom:1.2rem}
+
+  label.lab{display:block;font-size:.8rem;color:var(--muted);margin-bottom:.35rem;font-weight:600}
+  .field{margin-bottom:.95rem}
+  select,input[type=number]{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:.55rem .75rem;font-size:.98rem;outline:none;font-family:inherit}
+  select:focus,input:focus{border-color:var(--accent);background:#fff}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
+  .src{font-size:.75rem;color:var(--accent2);margin-top:.25rem;min-height:1em}
+  .hint{font-size:.75rem;color:var(--muted);margin-top:.3rem;line-height:1.4}
+
+  .seg{display:flex;flex-wrap:wrap;gap:.35rem}
+  .seg button{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:.42rem .7rem;font-size:.85rem;color:var(--text);cursor:pointer;font-family:inherit}
+  .seg button:hover{border-color:var(--accent)}
+  .seg button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .seg select{width:auto;padding:.4rem .5rem;font-size:.85rem}
+  .seg select.active{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+
+  .btn{background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:.5rem .95rem;font-size:.85rem;cursor:pointer;font-family:inherit;white-space:nowrap}
+  .btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  .btn.primary:hover{filter:brightness(1.08);color:#fff}
+  .btn.big{width:100%;padding:.7rem;font-size:1rem}
+  .btn.x{padding:.15rem .45rem;color:var(--muted);font-size:.8rem}
+  .btn.x:hover{color:var(--unsafe);border-color:var(--unsafe)}
+  .link{background:none;border:none;color:var(--accent);font-size:.8rem;cursor:pointer;padding:0;font-family:inherit}
+
+  .err{display:none;margin-top:.8rem;color:var(--unsafe);font-size:.86rem;line-height:1.5;background:#fdeeee;border:1px solid #f0bcbc;border-radius:8px;padding:.6rem .8rem}
+  .units-custom{display:none;grid-template-columns:1fr 1fr 1fr;gap:.5rem;margin-top:.6rem}
+  .units-custom.open{display:grid}
+  .units-custom label{font-size:.72rem;color:var(--muted)}
+  .units-custom select{padding:.35rem .4rem;font-size:.82rem}
+  .fluid-info{font-size:.75rem;color:var(--muted);margin-top:.3rem}
+  .fluid-note{font-size:.75rem;color:var(--warn);margin-top:.2rem}
+
+  /* current state */
+  .cur-head{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;margin-bottom:.35rem}
+  .num{background:var(--accent);color:#fff;border-radius:50%;min-width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem}
+  .cur-head .fl{font-weight:700;font-size:1.05rem}
+  .how{font-size:.85rem;color:var(--muted);margin-bottom:.9rem;line-height:1.5}
+  .delta{font-size:.88rem;background:var(--accent-soft);border-radius:8px;padding:.5rem .8rem;margin-bottom:1rem;color:var(--text)}
+  .delta b{color:var(--accent)}
+  .same{font-size:.84rem;color:var(--warn);background:#fff7e6;border:1px solid #f0d49a;border-radius:8px;padding:.45rem .8rem;margin-bottom:1rem;font-weight:600}
+  .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:.7rem}
+  @media(max-width:600px){.tiles{grid-template-columns:1fr 1fr}}
+  .tile{background:var(--surface2);border-radius:10px;padding:.7rem .9rem}
+  .tile .k{font-size:.75rem;color:var(--muted)}
+  .tile .v{font-size:1.3rem;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;margin-top:.1rem}
+  .tile .u{font-size:.75rem;color:var(--muted)}
+  details.more{margin-top:.9rem}
+  details.more summary{cursor:pointer;font-size:.85rem;color:var(--accent);font-weight:600;list-style:none}
+  details.more summary::before{content:'▸ '}
+  details.more[open] summary::before{content:'▾ '}
+  table{width:100%;border-collapse:collapse;font-size:.86rem}
+  .mt td{padding:.38rem .4rem;border-bottom:1px solid var(--border)}
+  .mt td.k{color:var(--muted)}
+  .mt td.v{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+  .mt td.u{color:var(--muted);font-size:.78rem;padding-left:.6rem}
+  .more-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 1.4rem;margin-top:.6rem}
+  @media(max-width:600px){.more-grid{grid-template-columns:1fr}}
+
+  /* next step */
+  .next{margin-top:1.2rem;border-top:1px solid var(--border);padding-top:1rem}
+  .next h3{font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.7rem}
+  .steps{display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem}
+  @media(max-width:700px){.steps{grid-template-columns:1fr 1fr}}
+  .step{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.6rem .75rem;cursor:pointer;text-align:left;font-family:inherit;color:var(--text)}
+  .step:hover{border-color:var(--accent)}
+  .step.active{border-color:var(--accent);background:var(--accent-soft)}
+  .step b{display:block;font-size:.95rem}
+  .step span{font-size:.75rem;color:var(--muted)}
+  .stepform{display:none;margin-top:.8rem;background:var(--surface2);border-radius:10px;padding:.9rem 1rem}
+  .stepform.open{display:block}
+  .stepform .row{display:flex;gap:.7rem;align-items:flex-end;flex-wrap:wrap}
+  .stepform .row .f{flex:1;min-width:130px}
+  .stepform .kind{font-size:.82rem;color:var(--accent2);font-weight:600;margin-top:.55rem;min-height:1em}
+
+  /* history */
+  .hist td,.hist th{padding:.45rem .45rem;text-align:center;border-bottom:1px solid var(--border);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .hist th{background:var(--surface2);color:var(--muted);font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+  .hist th .uu{display:block;text-transform:none;font-weight:400;letter-spacing:0;font-size:.68rem}
+  .hist td.howc{text-align:left;color:var(--muted);font-size:.8rem;white-space:normal;min-width:170px}
+  .hist tbody tr{cursor:pointer}
+  .hist tbody tr:hover td{background:var(--surface2)}
+  .hist tbody tr.cur td{background:var(--accent-soft)}
+  .hist td.n{font-weight:700;color:var(--accent)}
+  .hist input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:pointer}
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .pill{display:inline-block;padding:.1rem .5rem;border-radius:999px;font-size:.74rem;font-weight:600;border:1px solid;white-space:nowrap}
+  .pill.liq{color:var(--liq);border-color:var(--liq)}
+  .pill.vap{color:var(--vap);border-color:var(--vap)}
+  .pill.tp{color:var(--tp);border-color:var(--tp)}
+  .pill.sc{color:var(--sc);border-color:var(--sc)}
+  .pill.unk{color:var(--unsafe);border-color:var(--unsafe)}
+  .muted{color:var(--muted);font-size:.84rem}
+
+  /* compare */
+  .cmpt td,.cmpt th{padding:.45rem .6rem;border-bottom:1px solid var(--border);text-align:center;font-variant-numeric:tabular-nums}
+  .cmpt th{background:var(--surface2);color:var(--muted);font-size:.74rem;text-transform:uppercase}
+  .cmpt td.k{text-align:left;color:var(--muted)}
+  .cmpt td.d{color:var(--accent);font-weight:700}
+  .cmp-flow{display:flex;gap:.5rem;align-items:center;font-size:.85rem;color:var(--muted);margin:1rem 0 .8rem;flex-wrap:wrap}
+  .cmp-flow input{width:110px}
+  .cmp-flow select{width:auto}
+  .note{background:var(--accent-soft);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;padding:.6rem .9rem;font-size:.84rem;color:var(--text);line-height:1.5;margin-top:.8rem}
+
+  details.notes summary{cursor:pointer;font-weight:700;color:var(--muted);font-size:.85rem;text-transform:uppercase;letter-spacing:.08em}
+  .prose{font-size:.85rem;line-height:1.65;margin-top:.8rem}
+  .prose ul{margin-left:1.2rem}
+  .prose li{margin-bottom:.35rem}
+  .eq{font-family:'Courier New',monospace;font-size:.82rem;background:var(--surface2);border-radius:8px;padding:.8rem 1rem;white-space:pre;overflow-x:auto;margin:.6rem 0;color:var(--accent2)}
+  footer{text-align:center;margin-top:1.5rem;font-size:.76rem;color:var(--muted);line-height:1.7}
+  footer a{color:var(--accent)}
+
+  #loading{position:fixed;inset:0;background:rgba(244,246,250,.96);display:flex;align-items:center;justify-content:center;z-index:50;flex-direction:column;gap:.8rem;color:var(--muted);font-size:.95rem;text-align:center;padding:1rem}
+  .spinner{width:34px;height:34px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:#1b2233;color:#fff;padding:.6rem 1.1rem;border-radius:8px;font-size:.85rem;display:none;z-index:60}
+</style>
+</head>
+<body>
+<div id="loading"><div class="spinner"></div><div id="loadMsg">Loading CoolProp property engine (about 6 MB, first visit only)…</div></div>
+<div class="toast" id="toast"></div>
+<div class="container">
+  <header>
+    <h1>Fluid Property Flash Calculator</h1>
+    <p>Two inputs in, every property out · then step to the next state: same S, same H, same P or same T</p>
+    <p>CoolProp equations of state · 120+ fluids · Johann Cruz · Senior Process Engineer · November 2026</p>
+  </header>
+
+  <div class="main mb">
+    <!-- LEFT: INPUT -->
+    <div class="card">
+      <h2>Input</h2>
+      <div class="field">
+        <label class="lab" for="fluid">Fluid</label>
+        <select id="fluid"></select>
+        <div class="fluid-info" id="fluidInfo"></div>
+        <div class="fluid-note" id="fluidNote"></div>
+      </div>
+      <div class="field">
+        <label class="lab" for="unitPreset">Units <button class="link" id="customToggle" style="float:right">Custom units</button></label>
+        <select id="unitPreset">
+          <option value="eng">°C · kPa · kJ/kg</option>
+          <option value="kpag">°C · kPa(g) · kJ/kg</option>
+          <option value="barg">°C · bar(g) · kJ/kg</option>
+          <option value="bar">°C · bar · kJ/kg</option>
+          <option value="si">K · Pa · J/kg (SI base)</option>
+          <option value="us">°F · psia · Btu/lb</option>
+          <option value="custom" disabled>Custom</option>
+        </select>
+        <div class="units-custom" id="unitsCustom">
+          <div><label>Temperature</label><select id="u_T"></select></div>
+          <div><label>Pressure</label><select id="u_P"></select></div>
+          <div><label>Enthalpy</label><select id="u_H"></select></div>
+          <div><label>Entropy</label><select id="u_S"></select></div>
+          <div><label>Density</label><select id="u_D"></select></div>
+          <div><label>Viscosity</label><select id="u_mu"></select></div>
+        </div>
+      </div>
+      <div class="field">
+        <label class="lab">Flash type</label>
+        <div class="seg" id="pairSeg"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label class="lab" id="lab1" for="in1">Input 1</label><input type="number" step="any" id="in1"><div class="src" id="src1"></div></div>
+        <div class="field"><label class="lab" id="lab2" for="in2">Input 2</label><input type="number" step="any" id="in2"><div class="src" id="src2"></div></div>
+      </div>
+      <div class="hint" id="pairHint" style="margin:-.4rem 0 .8rem"></div>
+      <button class="btn primary big" id="calc">Calculate</button>
+      <div class="err" id="err"></div>
+    </div>
+
+    <!-- RIGHT: CURRENT STATE -->
+    <div class="card" id="curCard">
+      <h2>Current state</h2>
+      <div id="cur"><div class="muted">Enter two values and press Calculate.</div></div>
+      <div class="next" id="next" style="display:none">
+        <h3>Next step from this state</h3>
+        <div class="steps">
+          <button class="step" data-step="S"><b>Same S</b><span>compressor, pump, turbine</span></button>
+          <button class="step" data-step="H"><b>Same H</b><span>valve, choke (JT)</span></button>
+          <button class="step" data-step="P"><b>Same P</b><span>heater, cooler, condenser</span></button>
+          <button class="step" data-step="T"><b>Same T</b><span>isothermal change of P</span></button>
+        </div>
+        <div class="stepform" id="stepForm"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTORY -->
+  <div class="card">
+    <h2>History <span class="muted" id="histCount" style="text-transform:none;letter-spacing:0;font-weight:400"></span>
+      <span class="right"><button class="btn" id="copyCsv">Copy as CSV</button><button class="btn" id="clearHist">Clear</button></span></h2>
+    <div class="table-wrap"><table class="hist" id="hist"></table></div>
+    <div class="hint" id="histHint">Click a row to make it the current state. Tick two rows to compare them.</div>
+  </div>
+
+  <!-- COMPARE -->
+  <div class="card" id="compare" style="display:none"></div>
+
+  <!-- NOTES -->
+  <div class="card">
+    <details class="notes">
+      <summary>Method, notes and limitations</summary>
+      <div class="prose">
+        <div class="eq">Same S, compressor / pump (P2 &gt; P1):  h2 = h1 + (h2s − h1) / ηs     h2s = h(P2, s1)
+Same S, turbine / expander (P2 &lt; P1): h2 = h1 − ηs · (h1 − h2s)
+Same H, valve / choke:                h2 = h1   (Joule–Thomson)
+Same P, heater / cooler:              outlet from T or Q at P1;  q = h2 − h1
+Same T:                               outlet from T1 at the new P
+Superheat / subcool:                  ΔTsat = T − Tsat(P)</div>
+        <ul>
+          <li>Phase comes from CoolProp's phase result for every flash type. Below the critical pressure the tool also gives Tsat and the superheat (+) or subcooling (−).</li>
+          <li>Cp, Cv, γ, Z, viscosity, conductivity and speed of sound are not defined inside the two-phase region and are shown as “—”. Surface tension is defined only in the two-phase region.</li>
+          <li>Water boils at 99.974 °C at 101.325 kPa on the current temperature scale (ITS-90, IAPWS-95), not exactly 100 °C.</li>
+          <li>Pure and pseudo-pure fluids only. Natural gas is represented by pure methane; real gas compositions shift the phase envelope.</li>
+          <li>Air and refrigerant blends (R404A, R407C, R410A, R507A) are pseudo-pure in CoolProp: one saturation line, no temperature glide.</li>
+          <li>No hydrate, wax or solid checks. Temperatures below the melting line are rejected.</li>
+          <li>Enthalpy and entropy use CoolProp's reference state for each fluid. Compare differences (Δh, Δs) with other software, not absolute values.</li>
+          <li>Machines are adiabatic and modelled by isentropic efficiency only.</li>
+        </ul>
+      </div>
+    </details>
+  </div>
+
+  <footer>
+    Properties: CoolProp <span id="cpVer"></span> (HEOS backend), run in the browser as WebAssembly. Bell, I.H., Wronski, J., Quoilin, S., Lemort, V. (2014), <i>Ind. Eng. Chem. Res.</i> 53(6), 2498–2508. CoolProp is released under the MIT licence.<br>
+    Screening and study tool only. Results are not a substitute for a validated process simulator or for checks by a qualified engineer.<br>
+    <a href="../">← engcalc home</a>
+  </footer>
+</div>
+
+<script type="module">
+import Module from './coolprop.js';
+import { Engine, FLASH_PAIRS, FlashError } from './engine.js';
+
+/* ───────── units ───────── */
+const ATM = 101325;
+const UNITS = {
+  T:  { 'K': [1, 0], '°C': [1, -273.15], '°F': [1.8, -459.67] },
+  P:  { 'Pa': [1, 0], 'kPa': [1e-3, 0], 'kPa(g)': [1e-3, -ATM * 1e-3], 'bar': [1e-5, 0], 'bar(g)': [1e-5, -ATM * 1e-5], 'MPa': [1e-6, 0], 'psia': [1 / 6894.757, 0], 'psig': [1 / 6894.757, -ATM / 6894.757] },
+  H:  { 'J/kg': [1, 0], 'kJ/kg': [1e-3, 0], 'Btu/lb': [1 / 2326, 0] },
+  S:  { 'J/kg·K': [1, 0], 'kJ/kg·K': [1e-3, 0], 'Btu/lb·°F': [1 / 4186.8, 0] },
+  D:  { 'kg/m³': [1, 0], 'lb/ft³': [1 / 16.01846, 0] },
+  mu: { 'cP': [1e3, 0], 'Pa·s': [1, 0], 'µPa·s': [1e6, 0] },
+};
+const PRESETS = {
+  eng:  { T: '°C', P: 'kPa', H: 'kJ/kg', S: 'kJ/kg·K', D: 'kg/m³', mu: 'cP' },
+  kpag: { T: '°C', P: 'kPa(g)', H: 'kJ/kg', S: 'kJ/kg·K', D: 'kg/m³', mu: 'cP' },
+  barg: { T: '°C', P: 'bar(g)', H: 'kJ/kg', S: 'kJ/kg·K', D: 'kg/m³', mu: 'cP' },
+  bar:  { T: '°C', P: 'bar', H: 'kJ/kg', S: 'kJ/kg·K', D: 'kg/m³', mu: 'cP' },
+  si:   { T: 'K', P: 'Pa', H: 'J/kg', S: 'J/kg·K', D: 'kg/m³', mu: 'Pa·s' },
+  us:   { T: '°F', P: 'psia', H: 'Btu/lb', S: 'Btu/lb·°F', D: 'lb/ft³', mu: 'cP' },
+};
+let units = { ...PRESETS.eng }, preset = 'eng';
+const cat = (q) => ({ U: 'H', Cp: 'S', Tsat: 'T' }[q] || q);
+function unitLabel(q) {
+  if (q === 'dT') return units.T === '°F' ? '°F' : 'K';
+  if (['Q', 'Z', 'gamma'].includes(q)) return '–';
+  if (q === 'k') return 'W/m·K'; if (q === 'a') return 'm/s'; if (q === 'sigma') return 'mN/m';
+  return units[cat(q)];
+}
+function toDisp(q, si) {
+  if (!Number.isFinite(si)) return NaN;
+  if (['Q', 'Z', 'gamma', 'k', 'a'].includes(q)) return si;
+  if (q === 'sigma') return si * 1e3;
+  if (q === 'dT') return units.T === '°F' ? si * 1.8 : si;
+  const [f, o] = UNITS[cat(q)][units[cat(q)]];
+  return si * f + o;
+}
+function fromDisp(q, d) {
+  if (!Number.isFinite(d)) return NaN;
+  if (q === 'Q' || q === 'eta') return d;
+  if (q === 'dT') return units.T === '°F' ? d / 1.8 : d;
+  const [f, o] = UNITS[cat(q)][units[cat(q)]];
+  return (d - o) / f;
+}
+// differences: no offsets
+function dDisp(q, v) { if (q === 'T') return toDisp('dT', v); if (q === 'P') return v * UNITS.P[units.P][0]; return toDisp(q, v); }
+function dUnit(q) { if (q === 'T') return unitLabel('dT'); if (q === 'P') return units.P.replace('(g)', '').replace('psig', 'psi').replace('psia', 'psi'); return unitLabel(q); }
+const clean = (v, ref) => Math.abs(v) <= Math.abs(ref) * 1e-9 ? 0 : v;
+function fmtNum(v, sig = 5) {
+  if (!Number.isFinite(v)) return '—';
+  const a = Math.abs(v);
+  if (a === 0) return '0';
+  if (a < 1e-3 || a >= 1e9) return v.toExponential(3);
+  const dec = Math.max(0, Math.min(6, sig - 1 - Math.floor(Math.log10(a))));
+  return v.toFixed(dec);
+}
+const withU = (q, si) => `${fmtNum(toDisp(q, si))}${unitLabel(q) === '–' ? '' : ' ' + unitLabel(q)}`;
+const fmtMsg = (q, si) => withU(q, si);
+const inputVal = (q, si) => { const d = toDisp(q, si); return Number.isFinite(d) ? String(+d.toPrecision(7)) : ''; };
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const QLABEL = { T: 'Temperature T', P: 'Pressure P', H: 'Enthalpy H', S: 'Entropy S', D: 'Density D', Q: 'Quality Q', dT: 'Superheat / subcool ΔT' };
+const sym = (q) => q === 'dT' ? 'ΔT' : q;
+
+/* ───────── state ───────── */
+let engine, fluid = 'Water', pair = 'TP';
+let vals = [298.15, ATM], srcs = ['', ''];
+const hist = [];               // {n, fluid, how, kind, props, from, dh}
+let cur = null, seq = 0, step = null;
+let cmpSel = [], cmpFlow = { v: 1, u: 'kg/s' };
+const FLOWU = { 'kg/s': 1, 'kg/h': 1 / 3600, 't/h': 1 / 3.6, 'lb/h': 0.45359237 / 3600 };
+const MAIN_PAIRS = ['TP', 'PH', 'PS', 'PQ', 'TQ'];
+const DEF = { T: 298.15, P: ATM, Q: 1, dT: 5 };
+
+const $ = (id) => document.getElementById(id);
+function toast(m) { const t = $('toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toast._t); toast._t = setTimeout(() => t.style.display = 'none', 2400); }
+const getE = (n) => hist.find(x => x.n === n);
+const propFor = (q, p) => q === 'dT' ? p.margin : p[q];
+
+/* ───────── left panel ───────── */
+function renderPairSeg() {
+  const other = Object.keys(FLASH_PAIRS).filter(k => !MAIN_PAIRS.includes(k));
+  const lab = (k) => FLASH_PAIRS[k].label.split(' (')[0].replace('P – superheat / subcool ΔT', 'P – ΔTsat');
+  $('pairSeg').innerHTML = MAIN_PAIRS.map(k => `<button data-pair="${k}" class="${k === pair ? 'active' : ''}">${lab(k)}</button>`).join('') +
+    `<select id="pairOther" class="${other.includes(pair) ? 'active' : ''}"><option value="">More…</option>${other.map(k => `<option value="${k}"${k === pair ? ' selected' : ''}>${lab(k)}</option>`).join('')}</select>`;
+}
+function renderInputs() {
+  const [q1, q2] = FLASH_PAIRS[pair].q;
+  $('lab1').textContent = `${QLABEL[q1]} [${unitLabel(q1)}]`;
+  $('lab2').textContent = `${QLABEL[q2]} [${unitLabel(q2)}]`;
+  $('in1').value = inputVal(q1, vals[0]); $('in2').value = inputVal(q2, vals[1]);
+  $('src1').textContent = srcs[0]; $('src2').textContent = srcs[1];
+  $('pairHint').textContent = {
+    TP: 'On the saturation line T and P do not fix the state; use P – Q or T – Q there.',
+    PQ: 'Q = 0 saturated liquid, Q = 1 saturated vapour.', TQ: 'Q = 0 saturated liquid, Q = 1 saturated vapour.',
+    PdT: 'ΔT above (+) or below (−) the saturation temperature at P.',
+  }[pair] || '';
+}
+function setPair(k) {
+  const oldQ = FLASH_PAIRS[pair].q;
+  pair = k;
+  const newQ = FLASH_PAIRS[pair].q;
+  const c = cur !== null ? getE(cur) : null;
+  const nv = [], ns = [];
+  newQ.forEach((q, i) => {
+    const j = oldQ.indexOf(q);
+    if (c && c.fluid === fluid) { const v = propFor(q, c.props); if (Number.isFinite(v)) { nv[i] = v; ns[i] = `from #${c.n}`; return; } }
+    if (j >= 0 && Number.isFinite(vals[j])) { nv[i] = vals[j]; ns[i] = ''; return; }
+    nv[i] = DEF[q] ?? NaN; ns[i] = '';
+  });
+  vals = nv; srcs = ns;
+  renderPairSeg(); renderInputs(); hideErr();
+}
+function showErr(m) { const e = $('err'); e.textContent = m; e.style.display = 'block'; }
+function hideErr() { $('err').style.display = 'none'; }
+
+/* ───────── states ───────── */
+function addState(e) {
+  e.n = ++seq; e.time = new Date();
+  const prev = cur !== null ? getE(cur) : null;
+  if (prev && prev.fluid === e.fluid && sameState(prev.props, e.props)) e.same = prev.n;
+  hist.push(e); cur = e.n; step = null;
+  renderAll();
+}
+function sameState(a, b) {
+  const r = (x, y) => Math.abs(x - y) <= 1e-7 * Math.max(1, Math.abs(y));
+  return r(a.T, b.T) && r(a.P, b.P) && r(a.H, b.H);
+}
+function calculate() {
+  hideErr();
+  try {
+    const props = engine.flash(fluid, pair, vals[0], vals[1], fmtMsg);
+    const [q1, q2] = FLASH_PAIRS[pair].q;
+    addState({ fluid, kind: 'Flash', props, how: `${FLASH_PAIRS[pair].label.split(' (')[0].replace('P – superheat / subcool ΔT', 'P – ΔTsat')} flash: ${sym(q1)} = ${withU(q1, vals[0])}, ${sym(q2)} = ${withU(q2, vals[1])}` });
+  } catch (e) {
+    showErr(e instanceof FlashError ? e.message : 'Calculation failed: ' + (e && e.message ? e.message : e));
+  }
+}
+
+/* ───────── current state panel ───────── */
+const TWO_UNDEF = new Set(['Cp', 'Cv', 'gamma', 'Z', 'mu', 'k', 'a']);
+function renderCurrent() {
+  const c = cur !== null ? getE(cur) : null;
+  if (!c) { $('cur').innerHTML = '<div class="muted">Enter two values and press Calculate.</div>'; $('next').style.display = 'none'; return; }
+  const p = c.props, two = p.phase === 6;
+  let h = `<div class="cur-head"><span class="num">${c.n}</span><span class="fl">${esc(c.fluid)}</span><span class="pill ${p.phaseClass}">${p.phaseName}</span></div>
+    <div class="how">${esc(c.how)}</div>`;
+  if (c.from) {
+    const a = getE(c.from);
+    if (a) {
+      const dh = clean(p.H - a.props.H, a.props.H);
+      const word = c.kind === 'Compressor' ? 'work in' : c.kind === 'Turbine' ? 'work out' : c.kind === 'Heater / cooler' ? (dh >= 0 ? 'heat added' : 'heat removed') : '';
+      h += `<div class="delta">From #${a.n}: ΔT = <b>${fmtNum(dDisp('T', p.T - a.props.T))} ${dUnit('T')}</b> · ΔP = <b>${fmtNum(dDisp('P', clean(p.P - a.props.P, a.props.P)))} ${dUnit('P')}</b> · Δh = <b>${fmtNum(dDisp('H', dh))} ${dUnit('H')}</b>${word ? ' (' + word + ')' : ''}</div>`;
+    }
+  }
+  if (c.same) h += `<div class="same">⚠ Same state as #${c.same}. Change an input to get a new state.</div>`;
+  const tile = (k, q, v, txt) => `<div class="tile"><div class="k">${k}</div><div class="v">${txt ?? fmtNum(toDisp(q, v))}</div><div class="u">${unitLabel(q)}</div></div>`;
+  h += '<div class="tiles">' + tile('Temperature T', 'T', p.T) + tile('Pressure P', 'P', p.P) + tile('Density D', 'D', p.D) +
+    tile('Enthalpy H', 'H', p.H) + tile('Entropy S', 'S', p.S) +
+    (two ? tile('Vapour quality Q', 'Q', p.Q, fmtNum(p.Q, 4))
+         : Number.isFinite(p.margin) ? `<div class="tile"><div class="k">${p.margin >= 0 ? 'Superheat' : 'Subcooling'} vs Tsat</div><div class="v">${fmtNum(Math.abs(toDisp('dT', p.margin)))}</div><div class="u">${unitLabel('dT')} · Tsat ${withU('T', p.Tsat)}</div></div>`
+         : `<div class="tile"><div class="k">Compressibility Z</div><div class="v">${fmtNum(p.Z, 4)}</div><div class="u">above critical pressure</div></div>`) + '</div>';
+  const rows = [
+    ['Internal energy U', 'U', p.U], ['Saturation T at P', 'T', p.Tsat], ['Cp', 'Cp', p.Cp], ['Cv', 'Cp', p.Cv], ['γ = Cp/Cv', 'gamma', p.gamma],
+    ['Compressibility Z', 'Z', p.Z], ['Viscosity μ', 'mu', p.mu], ['Conductivity k', 'k', p.k], ['Speed of sound', 'a', p.a], ['Surface tension σ', 'sigma', p.sigma],
+  ];
+  const keyOf = { 'Cp': 'Cp', 'Cv': 'Cv', 'γ = Cp/Cv': 'gamma', 'Compressibility Z': 'Z', 'Viscosity μ': 'mu', 'Conductivity k': 'k', 'Speed of sound': 'a' };
+  const tr = rows.map(([k, q, v]) => {
+    let txt, note = '';
+    if (two && TWO_UNDEF.has(keyOf[k])) { txt = '—'; note = 'not defined in two-phase'; }
+    else if (k.startsWith('Surface') && !two) { txt = '—'; note = 'two-phase only'; }
+    else if (k.startsWith('Saturation') && !Number.isFinite(v)) { txt = '—'; note = 'above critical pressure'; }
+    else txt = fmtNum(toDisp(q, v));
+    return `<tr><td class="k">${k}</td><td class="v">${txt}</td><td class="u">${note || unitLabel(q)}</td></tr>`;
+  });
+  const open = $('cur').querySelector('details.more')?.open ? ' open' : '';
+  h += `<details class="more"${open}><summary>More properties</summary><div class="more-grid"><table class="mt">${tr.slice(0, 5).join('')}</table><table class="mt">${tr.slice(5).join('')}</table></div></details>`;
+  $('cur').innerHTML = h;
+  $('next').style.display = 'block';
+  document.querySelectorAll('.step').forEach(b => b.classList.toggle('active', b.dataset.step === step));
+  renderStepForm();
+}
+
+/* ───────── next step ───────── */
+const stepVals = { P2: NaN, eta: 0.75, T2: NaN, Q2: 1, mode: 'T' };
+function renderStepForm() {
+  const f = $('stepForm'), c = getE(cur);
+  if (!step || !c) { f.className = 'stepform'; f.innerHTML = ''; return; }
+  f.className = 'stepform open';
+  const pIn = (lab) => `<div class="f"><label class="lab">${lab} [${unitLabel('P')}]</label><input type="number" step="any" id="sP2" value="${inputVal('P', stepVals.P2)}"></div>`;
+  let h = '<div class="row">';
+  if (step === 'S') h += pIn('New pressure P') + `<div class="f" style="max-width:170px"><label class="lab">Isentropic efficiency ηs</label><input type="number" step="0.01" min="0.01" max="1" id="sEta" value="${stepVals.eta}"></div>`;
+  if (step === 'H') h += pIn('New pressure P');
+  if (step === 'T') h += pIn('New pressure P');
+  if (step === 'P') {
+    h += `<div class="f" style="max-width:150px"><label class="lab">Set outlet by</label><select id="sMode"><option value="T"${stepVals.mode === 'T' ? ' selected' : ''}>Temperature</option><option value="Q"${stepVals.mode === 'Q' ? ' selected' : ''}>Quality Q</option></select></div>`;
+    h += stepVals.mode === 'T'
+      ? `<div class="f"><label class="lab">New temperature T [${unitLabel('T')}]</label><input type="number" step="any" id="sT2" value="${inputVal('T', stepVals.T2)}"></div>`
+      : `<div class="f"><label class="lab">Outlet quality Q (0 liquid, 1 vapour)</label><input type="number" step="any" min="0" max="1" id="sQ2" value="${stepVals.Q2}"></div>`;
+  }
+  h += `<div><button class="btn primary" id="sGo">Calculate outlet</button></div></div><div class="kind" id="sKind"></div><div class="err" id="sErr"></div>`;
+  f.innerHTML = h;
+  const upd = () => {
+    if ($('sP2')) stepVals.P2 = fromDisp('P', parseFloat($('sP2').value));
+    if ($('sEta')) stepVals.eta = parseFloat($('sEta').value);
+    if ($('sT2')) stepVals.T2 = fromDisp('T', parseFloat($('sT2').value));
+    if ($('sQ2')) stepVals.Q2 = parseFloat($('sQ2').value);
+    const kt = kindText(); $('sKind').textContent = kt; $('sKind').style.color = kt.startsWith('Same pressure') ? 'var(--warn)' : '';
+  };
+  f.querySelectorAll('input').forEach(i => { i.addEventListener('input', upd); i.addEventListener('keydown', e => { if (e.key === 'Enter') runStep(); }); });
+  if ($('sMode')) $('sMode').onchange = () => { stepVals.mode = $('sMode').value; renderStepForm(); };
+  $('sGo').onclick = runStep;
+  upd();
+}
+function kindText() {
+  const c = getE(cur); if (!c) return '';
+  const P1 = c.props.P, P2 = stepVals.P2;
+  if (step === 'S') {
+    if (!Number.isFinite(P2)) return '';
+    if (Math.abs(P2 - P1) <= 1e-9 * P1) return 'Same pressure: enter a different pressure.';
+    const eta = stepVals.eta;
+    const what = P2 > P1 ? 'Compression (compressor or pump)' : 'Expansion (turbine or expander)';
+    return `${what}, pressure ratio ${fmtNum(P2 / P1, 4)}${eta === 1 ? ', ideal (isentropic)' : ''}.`;
+  }
+  if (step === 'H') return Number.isFinite(P2) ? `Isenthalpic pressure ${P2 < P1 ? 'drop' : 'change'} (valve or choke), ΔP = ${fmtNum(dDisp('P', P2 - P1))} ${dUnit('P')}.` : '';
+  if (step === 'P') return `Heat added or removed at P = ${withU('P', P1)}.`;
+  if (step === 'T') return `Isothermal at T = ${withU('T', c.props.T)}.`;
+  return '';
+}
+function runStep() {
+  const c = getE(cur), f = c.fluid, p = c.props;
+  const err = (m) => { const e = $('sErr'); e.textContent = m; e.style.display = 'block'; };
+  try {
+    let out, kind, how;
+    const P2 = stepVals.P2;
+    if (step === 'S') {
+      const eta = stepVals.eta;
+      if (!(eta > 0 && eta <= 1)) return err('Isentropic efficiency must be greater than 0 and not more than 1, e.g. 0.75.');
+      if (!Number.isFinite(P2)) return err('Enter the new pressure.');
+      if (Math.abs(P2 - p.P) <= 1e-9 * p.P) return err('The new pressure is the same as the current pressure.');
+      const iso = engine.flashPS(f, P2, p.S, fmtMsg);
+      const comp = P2 > p.P;
+      const h2 = eta === 1 ? iso.H : comp ? p.H + (iso.H - p.H) / eta : p.H - eta * (p.H - iso.H);
+      out = eta === 1 ? iso : engine.flashPH(f, P2, h2, fmtMsg);
+      kind = comp ? 'Compressor' : 'Turbine';
+      how = `${comp ? 'Compressor / pump' : 'Turbine / expander'} from #${c.n}: P = ${withU('P', P2)}, ηs = ${eta}` + (eta < 1 ? ` (isentropic outlet T2s = ${withU('T', iso.T)})` : ' (ideal)');
+    } else if (step === 'H') {
+      if (!Number.isFinite(P2)) return err('Enter the new pressure.');
+      out = engine.flashPH(f, P2, p.H, fmtMsg);
+      kind = 'Valve';
+      how = `Valve / choke from #${c.n}: P = ${withU('P', P2)} (same H)`;
+    } else if (step === 'P') {
+      if (stepVals.mode === 'T') {
+        if (!Number.isFinite(stepVals.T2)) return err('Enter the new temperature.');
+        out = engine.flash(f, 'TP', stepVals.T2, p.P, fmtMsg);
+        how = `Heater / cooler from #${c.n}: T = ${withU('T', stepVals.T2)} at the same P`;
+      } else {
+        out = engine.flash(f, 'PQ', p.P, stepVals.Q2, fmtMsg);
+        how = `Heater / cooler from #${c.n}: Q = ${stepVals.Q2} at the same P`;
+      }
+      kind = 'Heater / cooler';
+    } else if (step === 'T') {
+      if (!Number.isFinite(P2)) return err('Enter the new pressure.');
+      out = engine.flash(f, 'TP', p.T, P2, fmtMsg);
+      kind = 'Isothermal';
+      how = `Isothermal from #${c.n}: P = ${withU('P', P2)} at the same T`;
+    }
+    addState({ fluid: f, kind, how, props: out, from: c.n });
+  } catch (e) {
+    err(e instanceof FlashError ? e.message : 'Calculation failed: ' + (e && e.message ? e.message : e));
+  }
+}
+function openStep(s) {
+  const c = getE(cur);
+  step = step === s ? null : s;
+  if (step && c) { stepVals.P2 = c.props.P; stepVals.T2 = c.props.T; }
+  renderCurrent();
+  if (step) { const i = $('stepForm').querySelector('input'); if (i) { i.focus(); i.select(); } }
+}
+
+/* ───────── history ───────── */
+function renderHistory() {
+  $('histCount').textContent = hist.length ? `(${hist.length})` : '';
+  if (!hist.length) { $('hist').innerHTML = '<tbody><tr><td class="muted" style="text-align:left;cursor:default">No states yet.</td></tr></tbody>'; return; }
+  const cols = [['T', 'T'], ['P', 'P'], ['H', 'H'], ['S', 'S'], ['D', 'D'], ['Q', 'Q']];
+  let h = `<thead><tr><th title="Tick two rows to compare">Cmp</th><th>#</th><th>Fluid</th><th style="text-align:left">How</th><th>Phase</th>` +
+    cols.map(([n, q]) => `<th>${n}<span class="uu">${unitLabel(q)}</span></th>`).join('') + '<th></th></tr></thead><tbody>';
+  [...hist].reverse().forEach(e => {
+    const p = e.props;
+    h += `<tr data-row="${e.n}" class="${e.n === cur ? 'cur' : ''}"><td><input type="checkbox" data-cmp="${e.n}"${cmpSel.includes(e.n) ? ' checked' : ''}></td>
+      <td class="n">${e.n}</td><td>${esc(e.fluid)}</td><td class="howc">${esc(e.how)}</td><td><span class="pill ${p.phaseClass}">${p.phaseName}</span></td>
+      <td>${fmtNum(toDisp('T', p.T))}</td><td>${fmtNum(toDisp('P', p.P))}</td><td>${fmtNum(toDisp('H', p.H))}</td><td>${fmtNum(toDisp('S', p.S))}</td><td>${fmtNum(toDisp('D', p.D))}</td>
+      <td>${p.phase === 6 ? fmtNum(p.Q, 4) : '—'}</td><td><button class="btn x" data-del="${e.n}" title="Remove">✕</button></td></tr>`;
+  });
+  $('hist').innerHTML = h + '</tbody>';
+}
+function onHistClick(ev) {
+  const del = ev.target.closest('[data-del]');
+  if (del) {
+    const n = +del.dataset.del, i = hist.findIndex(x => x.n === n);
+    hist.splice(i, 1);
+    cmpSel = cmpSel.filter(x => x !== n);
+    if (cur === n) { cur = hist.length ? hist[hist.length - 1].n : null; step = null; }
+    renderAll(); return;
+  }
+  if (ev.target.closest('input[data-cmp]')) return;
+  const row = ev.target.closest('tr[data-row]');
+  if (row) { cur = +row.dataset.row; step = null; renderAll(); $('curCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+}
+function onHistChange(ev) {
+  const cb = ev.target.closest('input[data-cmp]'); if (!cb) return;
+  const n = +cb.dataset.cmp;
+  cmpSel = cb.checked ? cmpSel.filter(x => x !== n).concat(n).slice(-2) : cmpSel.filter(x => x !== n);
+  renderHistory(); renderCompare();
+  if (cmpSel.length === 2) $('compare').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/* ───────── compare ───────── */
+let cmpDh = 0;
+function renderCompare() {
+  const box = $('compare');
+  cmpSel = cmpSel.filter(n => getE(n));
+  if (cmpSel.length < 2) {
+    if (cmpSel.length === 1) { box.style.display = 'block'; box.innerHTML = `<h2>Compare</h2><div class="muted">#${cmpSel[0]} selected. Tick one more row.</div>`; }
+    else box.style.display = 'none';
+    return;
+  }
+  box.style.display = 'block';
+  const [A, B] = cmpSel.map(getE).sort((x, y) => x.n - y.n);
+  if (A.fluid !== B.fluid) { box.innerHTML = `<h2>Compare #${A.n} → #${B.n}</h2><div class="err" style="display:block">The two states are different fluids (${esc(A.fluid)}, ${esc(B.fluid)}). Their enthalpy and entropy reference states differ, so differences have no meaning.</div>`; return; }
+  const a = A.props, b = B.props;
+  let t = `<table class="cmpt"><thead><tr><th style="text-align:left">Property</th><th>#${A.n}</th><th>#${B.n}</th><th>Δ (#${B.n} − #${A.n})</th></tr></thead><tbody>`;
+  [['Temperature T', 'T'], ['Pressure P', 'P'], ['Enthalpy H', 'H'], ['Entropy S', 'S'], ['Internal energy U', 'U'], ['Density D', 'D']].forEach(([k, q]) => {
+    t += `<tr><td class="k">${k}</td><td>${withU(q, a[q])}</td><td>${withU(q, b[q])}</td><td class="d">${fmtNum(dDisp(q, clean(b[q] - a[q], a[q])))} ${dUnit(q)}</td></tr>`;
+  });
+  t += `<tr><td class="k">Phase</td><td><span class="pill ${a.phaseClass}">${a.phaseName}</span></td><td><span class="pill ${b.phaseClass}">${b.phaseName}</span></td><td></td></tr></tbody></table>`;
+  const dh = clean(b.H - a.H, a.H), rp = b.P / a.P;
+  cmpDh = dh;
+  const tiles = [`<div class="tile"><div class="k">Pressure ratio</div><div class="v">${fmtNum(rp, 4)}</div><div class="u">P(#${B.n}) / P(#${A.n})</div></div>`,
+    `<div class="tile"><div class="k">Δh per kg</div><div class="v">${fmtNum(dDisp('H', dh))}</div><div class="u">${dUnit('H')}</div></div>`,
+    `<div class="tile"><div class="k">Power or duty ṁ·Δh</div><div class="v" id="cmpPow"></div><div class="u" id="cmpPowU"></div></div>`];
+  const sameS = Math.abs(b.S - a.S) <= 1e-6 * Math.max(1, Math.abs(a.S));
+  const sameH = dh === 0 || Math.abs(dh) <= 1e-6 * Math.max(1, Math.abs(a.H));
+  if (Math.abs(rp - 1) > 1e-6 && !sameS && !sameH) {
+    try {
+      const h2s = engine.flashPS(A.fluid, b.P, a.S, fmtMsg).H;
+      if (rp > 1 && dh > 0) tiles.push(`<div class="tile"><div class="k">Implied isentropic efficiency</div><div class="v">${fmtNum((h2s - a.H) / dh * 100, 4)} %</div><div class="u">compression</div></div>`);
+      if (rp < 1 && dh < 0) tiles.push(`<div class="tile"><div class="k">Implied isentropic efficiency</div><div class="v">${fmtNum((a.H - b.H) / (a.H - h2s) * 100, 4)} %</div><div class="u">expansion</div></div>`);
+    } catch (e) {}
+  }
+  let note = '';
+  if (sameS && Math.abs(rp - 1) > 1e-6) note = 'Same entropy: ideal (isentropic) step.';
+  else if (sameH && Math.abs(rp - 1) > 1e-6) note = `Same enthalpy: valve or choke. Joule–Thomson temperature change ${fmtNum(dDisp('T', b.T - a.T), 4)} ${dUnit('T')}.`;
+  else if (Math.abs(rp - 1) <= 1e-6) note = 'Same pressure: Δh is the heat added or removed.';
+  box.innerHTML = `<h2>Compare #${A.n} → #${B.n} <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">${esc(A.fluid)}</span><span class="right"><button class="btn" id="cmpClear">Clear</button></span></h2>
+    <div class="table-wrap">${t}</div>
+    <div class="cmp-flow">Mass flow ṁ <input type="number" step="any" id="cmpFlow" value="${cmpFlow.v}"><select id="cmpFlowU">${Object.keys(FLOWU).map(u => `<option${u === cmpFlow.u ? ' selected' : ''}>${u}</option>`).join('')}</select></div>
+    <div class="tiles">${tiles.join('')}</div>${note ? `<div class="note">${note}</div>` : ''}`;
+  $('cmpClear').onclick = () => { cmpSel = []; renderHistory(); renderCompare(); };
+  $('cmpFlow').oninput = () => { cmpFlow.v = parseFloat($('cmpFlow').value); updPow(); };
+  $('cmpFlowU').onchange = () => { cmpFlow.u = $('cmpFlowU').value; updPow(); };
+  updPow();
+}
+function updPow() {
+  const kW = cmpFlow.v * FLOWU[cmpFlow.u] * cmpDh / 1000;
+  $('cmpPow').textContent = fmtNum(Math.abs(kW));
+  $('cmpPowU').textContent = 'kW' + (kW > 0 ? ' · into the fluid' : kW < 0 ? ' · out of the fluid' : '');
+}
+
+/* ───────── CSV ───────── */
+function csv() {
+  const R = [['#', 'Fluid', 'How', 'Phase', `T [${unitLabel('T')}]`, `P [${unitLabel('P')}]`, `H [${unitLabel('H')}]`, `S [${unitLabel('S')}]`, `D [${unitLabel('D')}]`, 'Q [-]', `U [${unitLabel('U')}]`, `Cp [${unitLabel('Cp')}]`, `Cv [${unitLabel('Cp')}]`, 'Z [-]', `mu [${unitLabel('mu')}]`, 'k [W/m.K]', 'a [m/s]']];
+  const n = (q, v) => { const d = toDisp(q, v); return Number.isFinite(d) ? +d.toPrecision(8) : ''; };
+  hist.forEach(e => {
+    const p = e.props, two = p.phase === 6;
+    R.push([e.n, e.fluid, e.how, p.phaseName, n('T', p.T), n('P', p.P), n('H', p.H), n('S', p.S), n('D', p.D), two ? n('Q', p.Q) : '', n('U', p.U),
+      two ? '' : n('Cp', p.Cp), two ? '' : n('Cp', p.Cv), two ? '' : n('Z', p.Z), two ? '' : n('mu', p.mu), two ? '' : n('k', p.k), two ? '' : n('a', p.a)]);
+  });
+  return R.map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n');
+}
+
+/* ───────── setup ───────── */
+const COMMON = ['Water', 'Methane', 'Ethane', 'Propane', 'n-Butane', 'IsoButane', 'CarbonDioxide', 'Nitrogen', 'Oxygen', 'Air', 'Hydrogen', 'Helium', 'Argon', 'Ammonia', 'R134a', 'R32', 'R410A', 'R1234yf', 'R1234ze(E)', 'R404A', 'R407C'];
+function fillSetup() {
+  const fl = engine.fluids(), common = COMMON.filter(c => fl.includes(c));
+  $('fluid').innerHTML = `<optgroup label="Common">${common.map(f => `<option>${f}</option>`).join('')}</optgroup><optgroup label="All CoolProp fluids">${fl.filter(f => !common.includes(f)).map(f => `<option>${f}</option>`).join('')}</optgroup>`;
+  for (const q of ['T', 'P', 'H', 'S', 'D', 'mu']) $('u_' + q).innerHTML = Object.keys(UNITS[q]).map(u => `<option>${u}</option>`).join('');
+}
+function syncSetup() {
+  $('fluid').value = fluid; $('unitPreset').value = preset;
+  for (const q of ['T', 'P', 'H', 'S', 'D', 'mu']) $('u_' + q).value = units[q];
+  const inf = engine.info(fluid);
+  $('fluidInfo').textContent = Number.isFinite(inf.Tc) ? `Tc ${withU('T', inf.Tc)} · Pc ${withU('P', inf.Pc)} · M ${fmtNum(inf.M * 1000, 4)} kg/kmol` : '';
+  $('fluidNote').textContent = inf.pure ? '' : 'Pseudo-pure: one saturation line, no temperature glide.';
+}
+function renderAll() { syncSetup(); renderPairSeg(); renderInputs(); renderCurrent(); renderHistory(); renderCompare(); }
+function save() { try { localStorage.setItem('engcalc-flash-v2', JSON.stringify({ fluid, units, preset })); } catch (e) {} }
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem('engcalc-flash-v2')); if (!s) return;
+    if (s.units && ['T', 'P', 'H', 'S', 'D', 'mu'].every(q => UNITS[q][s.units[q]])) { units = s.units; preset = s.preset || 'custom'; }
+    if (engine.fluids().includes(s.fluid)) fluid = s.fluid;
+  } catch (e) {}
+}
+
+function wire() {
+  $('fluid').onchange = () => { fluid = $('fluid').value; srcs = ['', '']; hideErr(); syncSetup(); renderInputs(); save(); };
+  $('unitPreset').onchange = () => { const p = $('unitPreset').value; if (PRESETS[p]) { units = { ...PRESETS[p] }; preset = p; renderAll(); save(); } };
+  $('customToggle').onclick = (e) => { e.preventDefault(); $('unitsCustom').classList.toggle('open'); };
+  for (const q of ['T', 'P', 'H', 'S', 'D', 'mu']) $('u_' + q).onchange = () => { units[q] = $('u_' + q).value; preset = 'custom'; renderAll(); save(); };
+  $('pairSeg').addEventListener('click', (e) => { const b = e.target.closest('button[data-pair]'); if (b) setPair(b.dataset.pair); });
+  $('pairSeg').addEventListener('change', (e) => { if (e.target.id === 'pairOther' && e.target.value) setPair(e.target.value); });
+  ['in1', 'in2'].forEach((id, i) => {
+    $(id).addEventListener('input', () => { vals[i] = fromDisp(FLASH_PAIRS[pair].q[i], parseFloat($(id).value)); srcs[i] = ''; $(i ? 'src2' : 'src1').textContent = ''; });
+    $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') calculate(); });
+  });
+  $('calc').onclick = calculate;
+  document.querySelectorAll('.step').forEach(b => b.onclick = () => openStep(b.dataset.step));
+  $('hist').addEventListener('click', onHistClick);
+  $('hist').addEventListener('change', onHistChange);
+  $('clearHist').onclick = () => { hist.length = 0; cur = null; cmpSel = []; step = null; renderAll(); };
+  $('copyCsv').onclick = async () => {
+    if (!hist.length) return toast('History is empty.');
+    try { await navigator.clipboard.writeText(csv()); toast('Copied. Paste into Excel.'); } catch (e) { toast('Copy was blocked by the browser.'); }
+  };
+}
+
+(async () => {
+  try {
+    const cp = await Module();
+    engine = new Engine(cp);
+    try { $('cpVer').textContent = cp.get_global_param_string('version'); } catch (e) {}
+    fillSetup(); load(); wire();
+    vals = [298.15, ATM];
+    renderAll();
+    calculate();                       // start with one state on screen
+    $('loading').style.display = 'none';
+  } catch (e) {
+    $('loadMsg').innerHTML = `<span style="color:var(--unsafe)">The CoolProp engine could not load in this browser.</span><br><span style="font-size:.85rem">${esc(e && e.message ? e.message : e)}</span>`;
+    document.querySelector('#loading .spinner').style.display = 'none';
+    console.error(e);
+  }
+})();
+</script>
+</body>
+</html>
