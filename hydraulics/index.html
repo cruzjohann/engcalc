@@ -219,6 +219,7 @@ table.mini tbody tr{cursor:default}
 .tag.fx rect{fill:var(--surface);stroke:var(--muted)} .tag.fx text{fill:var(--muted)}
 .tag.sv rect{fill:var(--accent);stroke:var(--accent)} .tag.sv text{fill:var(--surface)}
 .fld.m{grid-template-columns:1fr 76px 88px 44px}
+.fld.m.m2{grid-template-columns:1fr 100px 44px}.fld.m.m2 label{grid-column:1/-1}
 .fld input.solved{color:var(--accent);background:var(--accent-soft);border-color:transparent}
 .btn.xs2{padding:2px 9px;font-size:12px}
 .pad{padding:8px 14px;margin:0}
@@ -830,17 +831,24 @@ function uid(){ return Math.random().toString(36).slice(2,9); }
 function defaultSettings(){ return {vmax:3.0, vmin:0, C:100, Patm:101.325}; }
 function unitPreset(){ const cur=presetUnits('si'); Object.assign(cur, S.set.units||{}); return Object.keys(UPRESETS).find(k=>{ const p=presetUnits(k); return Object.keys(UNITS).every(q=>p[q]===cur[q]); })||''; }
 function blank(){ return {v:3, nodes:[], links:[], set:defaultSettings(), cases:[{id:uid(), name:'Case 1', vals:null}], ci:0, auto:true}; }
-function redKind(n){ const r=R&&R.ok&&R.res[n.id], p=n.p; if(!r) return null;
-  const d1 = p.Dmode==='override' ? +p.D1 : r.D, d2 = p.D2mode==='auto' ? r.Dout : +p.D2;
-  if(!(d1>0 && d2>0)) return null; return d2<d1-1e-9 ? 'red' : d2>d1+1e-9 ? 'exp' : 'same'; }
+function redSizes(n){ const p=n.p, ins=id=>S.links.filter(l=>l.to===id), outs=id=>S.links.filter(l=>l.from===id);
+  const next=(id,seen)=>{ const ol=outs(id); if(ol.length!==1) return null; const t=nodeById(ol[0].to); if(!t||seen.has(t.id)) return null; seen.add(t.id);
+    if(t.type==='segment') return +t.p.D>0?+t.p.D:null; if(t.type==='reducer'||t.type==='sink') return null; return next(t.id,seen); };
+  const anyDown=(id,seen)=>{ for(const l of outs(id)){ const t=nodeById(l.to); if(!t||seen.has(t.id)) continue; seen.add(t.id); if(t.type==='segment') return +t.p.D>0?+t.p.D:null; if(t.type==='reducer') continue; const d=anyDown(t.id,seen); if(d) return d; } return null; };
+  const outOf=(u)=>u.p.D2mode==='auto' ? next(u.id,new Set([u.id])) : +u.p.D2;
+  const up=(id,seen)=>{ const il=ins(id)[0]; if(!il) return null; const u=nodeById(il.from); if(!u||seen.has(u.id)) return null; seen.add(u.id);
+    if(u.type==='segment') return +u.p.D>0?+u.p.D:null; if(u.type==='reducer') return outOf(u); if(u.type==='source') return null; return up(u.id,seen); };
+  const d1 = p.Dmode==='override' ? +p.D1 : (up(n.id,new Set([n.id])) || anyDown(n.id,new Set([n.id])));
+  return {d1: d1>0?d1:null, d2: (v=>v>0?v:null)(outOf(n))}; }
+function redKind(n){ const {d1,d2}=redSizes(n); if(!(d1&&d2)) return null; return d2<d1-1e-9 ? 'red' : d2>d1+1e-9 ? 'exp' : 'same'; }
 function symKey(n){ if(n.type!=='reducer') return n.type; const k=redKind(n); return k==='exp' ? 'reducer_exp' : k==='same' ? 'reducer_same' : 'reducer'; }
 function nextNameP(pre){ const used=new Set(S.nodes.map(n=>n.name)); let i=1; while(used.has(`${pre} ${i}`)) i++; return `${pre} ${i}`; }
 // reducers keep a name that matches what they do (Reducer / Expander) until the user renames them
-function autoNameReducers(){ if(!R||!R.ok) return;
+function autoNameReducers(){
   S.nodes.forEach(n=>{ if(n.type!=='reducer' || !n.autoName) return; const k=redKind(n), pre = k==='exp'?'Expander':k==='red'?'Reducer':null;
     if(!pre || n.name.startsWith(pre+' ')) return; n.name=nextNameP(pre);
     if(sel&&sel.kind==='node'&&sel.id===n.id){ const f=$('#f-name'), h=$('#panel h3'); if(f) f.value=n.name; if(h) h.textContent=n.name; } }); }
-function solveNow(){ R=solve(S,S.set); autoNameReducers(); return R; }
+function solveNow(){ R=solve(S,S.set); return R; }
 function nextName(type){ const pre=TYPES[type].pre, used=new Set(S.nodes.map(n=>n.name)); let i=1; while(used.has(`${pre} ${i}`)) i++; return `${pre} ${i}`; }
 function captureCase(){ const vals={n:{},l:{}}; S.nodes.forEach(n=>{ const f=CASEF[n.type]; if(f){ vals.n[n.id]={}; f.forEach(k=>vals.n[n.id][k]=n.p[k]); } }); S.links.forEach(l=>{ if(l.split!=null) vals.l[l.id]=l.split; }); return vals; }
 function loadCase(vals){ if(!vals) return; S.nodes.forEach(n=>{ const v=vals.n[n.id]; if(v) Object.assign(n.p, JSON.parse(JSON.stringify(v))); });
@@ -869,7 +877,12 @@ function normalize(m){
     if(n.type==='splitter'||n.type==='combiner'){ delete p.tee; delete p.teeType; delete p.run; }
     if(n.type==='reducer' && p.type==null) p.type = (+p.angle===180||p.angle==null) ? 'sudden' : 'custom';
     if(n.type==='orifice' && p.spec==null) p.spec='beta';
-    if(n.type==='reducer' && p.D2mode==null) p.D2mode='override';   // diagrams saved before From next pipe existed keep their entered outlet ID
+    if(n.type==='reducer' && p.D2mode==null){   // saved before From next pipe existed: follow the next pipe only where the entered size already matches it
+      let d=null, cur=n, seen=new Set([n.id]);
+      for(;;){ const ol=(m.links||[]).filter(l=>l.from===cur.id); if(ol.length!==1) break; const t=m.nodes.find(x=>x.id===ol[0].to); if(!t||seen.has(t.id)) break; seen.add(t.id);
+        if(t.type==='segment'){ d=+(t.p||{}).D; break; } if(t.type==='reducer'||t.type==='sink') break; cur=t; }
+      p.D2mode = (d>0 && Math.abs(d-(+p.D2))<=0.5) ? 'auto' : 'override'; }
+    if(n.type==='reducer' && n.autoName==null && /^(Reducer|Expander) \d+$/.test(n.name||'')) n.autoName=true;
     if(n.type==='pump') delete p.npar;
     n.p=Object.assign(defaults(n.type), p); });
   return m;
@@ -1040,7 +1053,7 @@ function subText(n){
     case 'combiner': { const ni=S.links.filter(l=>l.to===n.id).length; return `${ni} inlet${ni===1?'':'s'}`; }
     case 'cv': return p.cvMode==='flow' ? `FC ${fu('Q',parseFloat(p.Qset),1)}` : p.cvMode==='pdown' ? `PC out ${fu('Pg',parseFloat(p.Pset),1)}` : p.cvMode==='pup' ? `BP in ${fu('Pg',parseFloat(p.Pset),1)}` : p.cvMode==='find' ? 'Cv: size to match' : `Cv ${fmt(+p.Cv,1)}`;
     case 'orifice': return p.spec==='find' ? 'Bore: find' : p.spec==='bore' ? `Bore ${fu('D',+p.d,1)}` : `β ${fmt(+p.beta,3)}`;
-    case 'reducer': { const r=R&&R.ok&&R.res[n.id]; const d1 = p.Dmode==='override' ? +p.D1 : (r?r.D:null); const d2 = p.D2mode==='auto' ? (r?r.Dout:null) : +p.D2;
+    case 'reducer': { const {d1,d2}=redSizes(n);
       const kind = d1&&d2 ? (d2<d1?'Reducer':d2>d1?'Expander':'Same size') : 'Reducer';
       return d1&&d2 ? `${kind} ${fuv('D',d1,1)}→${fuv('D',d2,1)}` : d2 ? `${kind} to ${fu('D',d2,1)}` : 'Sizes from the pipes'; }
     case 'pump': return p.hMode==='find' ? 'Head: find' : p.hMode==='curve' ? `Curve · ${fmt(+p.speed||100,0)}% speed` : `Head ${fu('H',+p.H,1)}`;
@@ -1249,8 +1262,9 @@ function fieldHtml(n,f){
   if(f.kind==='sn'){ const sv=f.solvedIf(n), r=R&&R.ok&&R.res[n.id]; const shown = sv ? (r&&r[f.solvedKey]!=null?sfmt(r[f.solvedKey]):'') : (v===''||v==null?'':inVal(q,v));
     return `<div class="fld"><label for="${id}">${f.label}${sv?' <small>(solved)</small>':''}</label><input id="${id}" data-k="${f.key}"${dq} ${sv?`data-sv="${f.solvedKey}" disabled class="solved"`:''} type="${sv?'text':'number'}" step="any" value="${esc(shown)}"><span class="u">${ul(f.unit)}</span></div>`; }
   if(f.kind==='num') return `<div class="fld"><label for="${id}">${f.label}</label><input id="${id}" data-k="${f.key}" type="number" step="any" value="${v===''||v==null?'':esc(inVal(q,v))}"${f.list?` list="${f.list}"`:''}><span class="u">${ul(f.unit)}</span></div>`;
-  if(f.kind==='mode'){ const sv=isSolvedMode(n,f); const r=R&&R.ok&&R.res[n.id]; const shown = sv ? (r&&r[f.solvedKey]!=null?sfmt(r[f.solvedKey]):'') : (v===''||v==null?'':inVal(q,v));
-    return `<div class="fld m"><label for="${id}">${f.label}</label><select id="${id}-m" data-k="${f.mkey}" aria-label="${f.label}: fixed or solved">${f.opts.map(([a,b])=>`<option value="${a}"${(n.p[f.mkey]===a||(n.type==='sink'&&a==='solved'&&n.p[f.mkey]!=='fixed'))?' selected':''}>${b}</option>`).join('')}</select><input id="${id}" data-k="${f.key}" ${sv?`data-sv="${f.solvedKey}" disabled class="solved"`:''}${dq} type="${sv?'text':'number'}" step="any" value="${esc(shown)}"><span class="u">${ul(f.unit)}</span></div>`; }
+  if(f.kind==='mode'){ const sv=isSolvedMode(n,f); const r=R&&R.ok&&R.res[n.id]; const red=(f.mkey==='Dmode'||f.mkey==='D2mode')?(f.mkey==='Dmode'?'d1':'d2'):'';
+    const shown = sv ? (red ? (v2=>v2?sfmt(v2):'')(redSizes(n)[red]) : (r&&r[f.solvedKey]!=null?sfmt(r[f.solvedKey]):'')) : (v===''||v==null?'':inVal(q,v));
+    return `<div class="fld m${f.opts.some(o=>o[1].length>8)?' m2':''}"><label for="${id}">${f.label}</label><select id="${id}-m" data-k="${f.mkey}" aria-label="${f.label}: fixed or solved">${f.opts.map(([a,b])=>`<option value="${a}"${(n.p[f.mkey]===a||(n.type==='sink'&&a==='solved'&&n.p[f.mkey]!=='fixed'))?' selected':''}>${b}</option>`).join('')}</select><input id="${id}" data-k="${f.key}" ${sv?(red?`data-red="${red}" disabled class="solved"`:`data-sv="${f.solvedKey}" disabled class="solved"`):''}${dq} type="${sv?'text':'number'}" step="any" value="${esc(shown)}"><span class="u">${ul(f.unit)}</span></div>`; }
   if(f.kind==='check') return `<div class="fld wide"><label for="${id}">${f.label}</label><input id="${id}" data-k="${f.key}" type="checkbox" ${v===true?'checked':''} style="width:auto;justify-self:start"></div>`;
   if(f.kind==='select') return `<div class="fld wide"><label for="${id}">${f.label}</label><select id="${id}" data-k="${f.key}">${f.opts.map(([a,b])=>`<option value="${a}"${a===v?' selected':''}>${b}</option>`).join('')}</select></div>`;
   if(f.kind==='fluid') return `<div class="fld wide"><label for="${id}">${f.label}</label><select id="${id}" data-k="fluid">${Object.entries(FLUIDS).map(([a,b])=>`<option value="${a}"${a===v?' selected':''}>${b.n}</option>`).join('')}</select></div>`;
@@ -1464,6 +1478,7 @@ function updatePanelResults(){
   const pr=$('#pres'); if(pr){ pr.innerHTML=resultHtml(n); wireInsRed(); }
   const r=R&&R.ok&&R.res[n.id];
   document.querySelectorAll('#panel [data-sv]').forEach(i=>{ const v=r&&r[i.dataset.sv]; i.value = v!=null ? (i.dataset.q?fuv(i.dataset.q,v,3):fmt(v,3)) : ''; });
+  { const nn=sel&&sel.kind==='node'&&nodeById(sel.id); if(nn&&nn.type==='reducer'){ const z=redSizes(nn); document.querySelectorAll('#panel [data-red]').forEach(i=>{ const v=z[i.dataset.red]; i.value=v?fuv('D',v,3):''; }); } }
   document.querySelectorAll('#panel [data-svl]').forEach(i=>{ const o=r&&r.outlets?r.outlets.find(x=>x.link===i.dataset.svl):null; i.value=o?fuv('Q',o.Q,3):''; });
 }
 function deleteSel(){
@@ -1553,9 +1568,10 @@ function renderStatus(){
 function setTab(t){ tab=t; $('#drawer').classList.remove('collapsed'); $('#bDrawer').textContent='Hide results'; renderDrawer(); }
 
 /* ---------- run ---------- */
-function run(){ solveNow(); stale=false; render(); renderDrawer(); renderStatus(); updatePanelResults(); save(); }
+function run(){ autoNameReducers(); solveNow(); stale=false; render(); renderDrawer(); renderStatus(); updatePanelResults(); save(); }
 function changed(panelToo, keepPanel){
   if(CMP) CMPstale=true;
+  autoNameReducers();
   if(S.auto) solveNow(); else stale=true;
   render(); renderDrawer(); renderStatus();
   if(panelToo) renderPanel(); else if(keepPanel) updatePanelResults();
