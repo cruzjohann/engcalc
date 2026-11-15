@@ -810,6 +810,8 @@ const SYM = {
   combiner:'<path d="M3 4l19 9M3 22l19-9M22 13h12"/><circle cx="22" cy="13" r="3" class="fill"/>',
   junction:'<circle cx="18" cy="13" r="4" class="fill"/><path d="M2 13h12M22 13l12-8M22 13l12 8"/>',
   reducer:'<path d="M4 5l28 5v6L4 21z"/>',
+  reducer_exp:'<path d="M4 10l28-5v16L4 16z"/>',
+  reducer_same:'<path d="M4 8h28v10H4z"/><path d="M4 5v16M32 5v16"/>',
   fitting:'<path d="M2 20h10a8 8 0 0 0 8-8V2"/>',
   cv:'<path d="M4 12l14 7-14 7zM32 12L18 19l14 7z"/><path d="M18 19V8"/><path d="M10 8a8 6 0 0 1 16 0z"/>',
   orifice:'<path d="M2 13h12M22 13h12"/><path d="M15 3v8M15 15v8M21 3v8M21 15v8" stroke-width="2.2"/>',
@@ -828,6 +830,17 @@ function uid(){ return Math.random().toString(36).slice(2,9); }
 function defaultSettings(){ return {vmax:3.0, vmin:0, C:100, Patm:101.325}; }
 function unitPreset(){ const cur=presetUnits('si'); Object.assign(cur, S.set.units||{}); return Object.keys(UPRESETS).find(k=>{ const p=presetUnits(k); return Object.keys(UNITS).every(q=>p[q]===cur[q]); })||''; }
 function blank(){ return {v:3, nodes:[], links:[], set:defaultSettings(), cases:[{id:uid(), name:'Case 1', vals:null}], ci:0, auto:true}; }
+function redKind(n){ const r=R&&R.ok&&R.res[n.id], p=n.p; if(!r) return null;
+  const d1 = p.Dmode==='override' ? +p.D1 : r.D, d2 = p.D2mode==='auto' ? r.Dout : +p.D2;
+  if(!(d1>0 && d2>0)) return null; return d2<d1-1e-9 ? 'red' : d2>d1+1e-9 ? 'exp' : 'same'; }
+function symKey(n){ if(n.type!=='reducer') return n.type; const k=redKind(n); return k==='exp' ? 'reducer_exp' : k==='same' ? 'reducer_same' : 'reducer'; }
+function nextNameP(pre){ const used=new Set(S.nodes.map(n=>n.name)); let i=1; while(used.has(`${pre} ${i}`)) i++; return `${pre} ${i}`; }
+// reducers keep a name that matches what they do (Reducer / Expander) until the user renames them
+function autoNameReducers(){ if(!R||!R.ok) return;
+  S.nodes.forEach(n=>{ if(n.type!=='reducer' || !n.autoName) return; const k=redKind(n), pre = k==='exp'?'Expander':k==='red'?'Reducer':null;
+    if(!pre || n.name.startsWith(pre+' ')) return; n.name=nextNameP(pre);
+    if(sel&&sel.kind==='node'&&sel.id===n.id){ const f=$('#f-name'), h=$('#panel h3'); if(f) f.value=n.name; if(h) h.textContent=n.name; } }); }
+function solveNow(){ R=solve(S,S.set); autoNameReducers(); return R; }
 function nextName(type){ const pre=TYPES[type].pre, used=new Set(S.nodes.map(n=>n.name)); let i=1; while(used.has(`${pre} ${i}`)) i++; return `${pre} ${i}`; }
 function captureCase(){ const vals={n:{},l:{}}; S.nodes.forEach(n=>{ const f=CASEF[n.type]; if(f){ vals.n[n.id]={}; f.forEach(k=>vals.n[n.id][k]=n.p[k]); } }); S.links.forEach(l=>{ if(l.split!=null) vals.l[l.id]=l.split; }); return vals; }
 function loadCase(vals){ if(!vals) return; S.nodes.forEach(n=>{ const v=vals.n[n.id]; if(v) Object.assign(n.p, JSON.parse(JSON.stringify(v))); });
@@ -970,7 +983,7 @@ function startPaletteDrag(e,type,label){
     } };
   window.addEventListener('pointermove',mv); window.addEventListener('pointerup',up);
 }
-function newNode(type,x,y){ const n={id:uid(),type,name:nextName(type),x,y,p:defaults(type)}; S.nodes.push(n); return n; }
+function newNode(type,x,y){ const n={id:uid(),type,name:nextName(type),x,y,p:defaults(type)}; if(type==='reducer') n.autoName=true; S.nodes.push(n); return n; }
 function downstream(id){ const out=new Set(), st=[id]; while(st.length){ const t=st.pop(); if(out.has(t)) continue; out.add(t); S.links.filter(l=>l.from===t).forEach(l=>st.push(l.to)); } return out; }
 function freeSpot(x,y){ while(S.nodes.some(m=>Math.abs(m.x-x)<NW&&Math.abs(m.y-y)<NH)) y+=NH+30; return y; }
 function addAfterSelected(type){
@@ -1086,12 +1099,12 @@ function render(){
         else val='';
         rows+=`<text class="nrow" data-fit="rowname" x="${isS?12:14}" y="${y+4}">${isS?'→ ':'← '}${esc(other?other.name:'?')}</text><text class="nrowv${back?' back':''}" data-fit="shrink" data-maxw="${Math.round(Wn*0.5)}" x="${Wn-14}" y="${y+4}" text-anchor="end">${esc(val)}</text>`; });
       rows+=`<text class="nspare" data-fit="trunc" data-maxw="${Wn-30}" x="${isS?Wn-14:14}" y="${(isS?L.spareOut:L.spareIn)+4}" text-anchor="${isS?'end':'start'}">${isS?'drag from the dot to add an outlet':'drop a line here to add an inlet'}</text>`;
-      inner=`<g class="sym" transform="translate(10,9)">${SYM[n.type]||''}</g>
+      inner=`<g class="sym" transform="translate(10,9)">${SYM[symKey(n)]||''}</g>
         <text class="nname" data-fit="trunc" data-maxw="${tg.x0-52-6}" x="52" y="19">${esc(n.name)}</text>${tg.h}
         <text class="nsub" data-fit="shrink" data-maxw="${Wn-52-10}" x="52" y="36">${esc(head)}</text>
         <line class="ndiv" x1="8" x2="${Wn-8}" y1="46" y2="46"/>${rows}`;
     } else {
-      inner=`<g class="sym" transform="translate(10,9)">${SYM[n.type]||''}</g>
+      inner=`<g class="sym" transform="translate(10,9)">${SYM[symKey(n)]||''}</g>
       <text class="nname" data-fit="trunc" data-maxw="${tg.x0-52-6}" x="52" y="19">${esc(n.name)}</text>
       ${tg.h}
       <text class="nsub" data-fit="shrink" data-maxw="${Wn-52-10}" x="52" y="36">${esc(subText(n))}</text>
@@ -1415,7 +1428,7 @@ function renderPanel(){
     const ev = inp.tagName==='SELECT'||inp.type==='checkbox' ? 'change' : 'input';
     inp.addEventListener(ev,()=>{
       const k=inp.dataset.k; if(ev==='change') pushUndo();
-      if(k==='__name'){ n.name=inp.value; el.querySelector('h3').textContent=n.name; changed(false,true); return; }
+      if(k==='__name'){ n.name=inp.value; delete n.autoName; el.querySelector('h3').textContent=n.name; changed(false,true); return; }
       if(inp.type==='checkbox'){ n.p[k]=inp.checked; changed(false,true); return; }
       if(inp.tagName==='SELECT'){
         if(k==='mode'){ const Qin=(R&&R.ok&&R.res[n.id]&&R.res[n.id].Q)||0;
@@ -1463,7 +1476,7 @@ function deleteSel(){
   sel=null; changed(true);
 }
 function duplicateSel(){ const s=findSel(); if(!s||sel.kind!=='node') return; pushUndo();
-  const c=JSON.parse(JSON.stringify(s)); c.id=uid(); c.x+=30; c.y+=NH+30; c.name=s.name+' copy'; S.nodes.push(c); sel={kind:'node',id:c.id}; changed(true); }
+  const c=JSON.parse(JSON.stringify(s)); c.id=uid(); c.x+=30; c.y+=NH+30; c.name=s.name+' copy'; if(c.autoName) c.name=nextName(c.type); S.nodes.push(c); sel={kind:'node',id:c.id}; changed(true); }
 
 /* ---------- results drawer ---------- */
 function applySolved(i){
@@ -1540,10 +1553,10 @@ function renderStatus(){
 function setTab(t){ tab=t; $('#drawer').classList.remove('collapsed'); $('#bDrawer').textContent='Hide results'; renderDrawer(); }
 
 /* ---------- run ---------- */
-function run(){ R=solve(S,S.set); stale=false; render(); renderDrawer(); renderStatus(); updatePanelResults(); save(); }
+function run(){ solveNow(); stale=false; render(); renderDrawer(); renderStatus(); updatePanelResults(); save(); }
 function changed(panelToo, keepPanel){
   if(CMP) CMPstale=true;
-  if(S.auto) R=solve(S,S.set); else stale=true;
+  if(S.auto) solveNow(); else stale=true;
   render(); renderDrawer(); renderStatus();
   if(panelToo) renderPanel(); else if(keepPanel) updatePanelResults();
   save();
@@ -1554,7 +1567,7 @@ function runAll(){
   loadCase(S.cases[keep].vals); CMPstale=false; tab='cmp'; run(); renderPanel();
 }
 function buildCaseSel(){ const s=$('#caseSel'); s.innerHTML=S.cases.map((c,i)=>`<option value="${i}"${i===S.ci?' selected':''}>${esc(c.name)}</option>`).join(''); $('#autoRun').checked=!!S.auto; }
-function switchCase(i){ if(i===S.ci) return; syncCase(); S.ci=i; loadCase(S.cases[i].vals); buildCaseSel(); if(S.auto) R=solve(S,S.set); else stale=true; render(); renderDrawer(); renderStatus(); renderPanel(); save(); }
+function switchCase(i){ if(i===S.ci) return; syncCase(); S.ci=i; loadCase(S.cases[i].vals); buildCaseSel(); if(S.auto) solveNow(); else stale=true; render(); renderDrawer(); renderStatus(); renderPanel(); save(); }
 function openCases(){
   syncCase();
   const draw=()=>{ $('#mBody').innerHTML=`<p class="note">Geometry (pipe segments, fittings, reducers, orifices) is shared by every case. Each case keeps its own flows, pressures, Fixed/Solved/Find choices, Splitter shares, pump heads, valve Cv values and fixed ΔPs.</p>
