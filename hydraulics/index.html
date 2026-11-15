@@ -1,0 +1,1768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Line Hydraulics Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style id="appcss">
+:root{
+  /* Layout: palette | drawing canvas (results drawer under it) | properties panel */
+  --bg:#eef1f4;
+  --surface:#ffffff;
+  --ink:#16212c;
+  --muted:#5b6b7a;
+  --line:#cfd7df;
+  --accent:#0b6e99;
+  --accent-soft:#dcedf5;
+  --grid:#dde3e9;
+  --ok:#1f7a4d; --warn:#a86400; --bad:#b3261e;
+  --warn-soft:#fff1d9; --bad-soft:#fde4e2;
+  --font-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f151b; --surface:#17202a; --ink:#e3e9ef; --muted:#93a3b2; --line:#2c3a47;
+    --accent:#4fb3de; --accent-soft:#16384a; --grid:#1c2732;
+    --ok:#5cc28f; --warn:#e7a947; --bad:#f2847b; --warn-soft:#3a2c12; --bad-soft:#3d1b19;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f151b; --surface:#17202a; --ink:#e3e9ef; --muted:#93a3b2; --line:#2c3a47;
+  --accent:#4fb3de; --accent-soft:#16384a; --grid:#1c2732;
+  --ok:#5cc28f; --warn:#e7a947; --bad:#f2847b; --warn-soft:#3a2c12; --bad-soft:#3d1b19;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--font-body);overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.app{display:grid;grid-template-rows:auto 1fr;height:100%}
+header{display:flex;align-items:center;gap:12px;padding:8px 14px;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-size:15px;font-weight:600;margin:0;letter-spacing:.01em}
+header .sub{color:var(--muted);font-size:12px}
+.tb{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:5px 10px;font-size:13px}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{filter:brightness(1.08);color:#fff}
+.btn.danger:hover{border-color:var(--bad);color:var(--bad)}
+
+.main{display:grid;grid-template-columns:196px minmax(0,1fr) 320px;min-height:0}
+.palette{background:var(--surface);border-right:1px solid var(--line);overflow-y:auto;padding:10px 10px 20px}
+.palette h2{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:14px 4px 6px;font-weight:600}
+.palette h2:first-child{margin-top:2px}
+.pitem{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:6px;border:1px solid transparent;cursor:grab;user-select:none;touch-action:none;font-size:13px}
+.pitem:hover{background:var(--accent-soft);border-color:var(--line)}
+.pitem svg{flex:none}
+.hint{font-size:12px;color:var(--muted);margin:14px 4px 0}
+
+.center{display:grid;grid-template-rows:1fr auto;min-width:0;min-height:0}
+.canvas-wrap{position:relative;min-height:0;overflow:hidden}
+#cv{width:100%;height:100%;display:block;touch-action:none;background:var(--bg);cursor:default}
+#cv.panning{cursor:grabbing}
+.zoombar{position:absolute;right:10px;top:10px;display:flex;gap:4px}
+.zoombar .btn{padding:3px 9px;background:var(--surface)}
+.chips{position:absolute;left:10px;top:10px;display:flex;gap:6px;flex-wrap:wrap;pointer-events:none}
+.chip{pointer-events:auto;font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:var(--surface)}
+.chip.ok{color:var(--ok)} .chip.warn{color:var(--warn);background:var(--warn-soft);border-color:transparent;cursor:pointer}
+.chip.bad{color:var(--bad);background:var(--bad-soft);border-color:transparent;cursor:pointer}
+
+/* svg */
+.gridline{stroke:var(--grid);stroke-width:1}
+.node .nbody{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node.sel .nbody{stroke:var(--accent);stroke-width:2}
+.node .stripe{fill:transparent}
+.node.w .stripe{fill:var(--warn)} .node.e .stripe{fill:var(--bad)}
+.node text{fill:var(--ink);font-family:var(--font-body)}
+.node .nname{font-size:12.5px;font-weight:600}
+.node .nsub{font-size:11px;fill:var(--muted)}
+.node .nres{font-size:11px;font-family:var(--font-mono);fill:var(--accent)}
+.node{cursor:move}
+.sym{stroke:var(--ink);fill:none;stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
+.sym .fill{fill:var(--ink)}
+.port{fill:var(--surface);stroke:var(--muted);stroke-width:1.4;cursor:crosshair}
+.node .nrow{font-size:11.5px;fill:var(--ink)}
+.node .nrowv{font-size:11px;font-family:var(--font-mono);fill:var(--accent)}
+.node .nrowv.back{fill:var(--warn)}
+#cv text{user-select:none;-webkit-user-select:none}
+.node .nspare{font-size:10px;fill:var(--muted);font-style:italic}
+.node .ndiv{stroke:var(--line);stroke-width:1}
+.ctab{width:100%;margin:4px 0 8px}
+.ctab th,.ctab td{border:none;padding:3px 4px}
+.ctab th{position:static;font-weight:500}
+.ctab tbody tr{cursor:default}
+.ctab tbody tr:hover{background:none}
+.ctab td.l{font-family:var(--font-body);font-size:12.5px;color:var(--muted)}
+.ctab input{width:100%;padding:4px 6px;border:1px solid var(--line);border-radius:5px;background:var(--bg);font-family:var(--font-mono);font-size:12.5px;text-align:right}
+.ctab input:disabled{color:var(--muted);border-color:transparent}
+.cplot{width:100%;height:auto;display:block;margin:6px 0 10px}
+.cplot .ax{stroke:var(--line)}
+.cplot .cv{stroke:var(--ink);fill:none;stroke-width:1.8}
+.cplot .cv0{stroke:var(--muted);fill:none;stroke-width:1;stroke-dasharray:4 3}
+.cplot .pt{fill:var(--surface);stroke:var(--ink);stroke-width:1.3}
+.cplot .op{fill:var(--accent)}
+.cplot text{font-size:10px;fill:var(--muted);font-family:var(--font-mono)}
+.cplot .opl{fill:var(--accent)}
+.port.spare{fill:var(--bg);stroke-dasharray:2 2}
+.fld label small{color:var(--accent);font-size:11px}
+.port:hover,.port.hot{fill:var(--accent);stroke:var(--accent)}
+.link path.vis{stroke:var(--muted);stroke-width:2;fill:none}
+.link.sel path.vis{stroke:var(--accent);stroke-width:3}
+.link path.hit{stroke:transparent;stroke-width:14;fill:none;cursor:pointer}
+.link text{font-size:11px;font-family:var(--font-mono);fill:var(--muted);paint-order:stroke;stroke:var(--bg);stroke-width:4px}
+.tmp{stroke:var(--accent);stroke-width:2;stroke-dasharray:5 4;fill:none}
+#arrowhead path{fill:var(--muted)}
+
+/* drawer */
+.drawer{min-width:0;background:var(--surface);border-top:1px solid var(--line);display:flex;flex-direction:column;height:34vh;min-height:120px}
+.drawer.collapsed{height:auto}
+.drawer.collapsed .dbody{display:none}
+.tabs{display:flex;gap:2px;padding:6px 10px 0;border-bottom:1px solid var(--line);align-items:flex-end}
+.tab{border:none;background:none;padding:6px 12px;border-bottom:2px solid transparent;color:var(--muted);font-size:13px}
+.tab.on{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
+.tabs .spacer{flex:1}
+.dbody{overflow:auto;flex:1}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th,td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{position:sticky;top:0;background:var(--surface);font-weight:600;color:var(--muted);font-size:11.5px;z-index:1}
+th:first-child,td:first-child,th.l,td.l{text-align:left}
+td{font-variant-numeric:tabular-nums;font-family:var(--font-mono);font-size:12px}
+td.l{font-family:var(--font-body);font-size:12.5px}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--accent-soft)}
+tr.w td:first-child{box-shadow:inset 3px 0 var(--warn)} tr.e td:first-child{box-shadow:inset 3px 0 var(--bad)}
+.empty{padding:18px;color:var(--muted)}
+.checks{list-style:none;margin:0;padding:6px 0}
+.checks li{padding:6px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;cursor:pointer}
+.checks li:hover{background:var(--accent-soft)}
+.sev{font-size:11px;font-weight:600;padding:1px 7px;border-radius:999px;flex:none;align-self:flex-start}
+.sev.w{background:var(--warn-soft);color:var(--warn)} .sev.e{background:var(--bad-soft);color:var(--bad)}
+
+/* panel */
+.panel{background:var(--surface);border-left:1px solid var(--line);overflow-y:auto;padding:14px 14px 30px}
+.panel h3{margin:0 0 2px;font-size:15px;text-wrap:balance}
+.panel .kind{color:var(--muted);font-size:12px;margin-bottom:12px}
+.fld{display:grid;grid-template-columns:1fr 112px 52px;align-items:center;gap:6px;margin:6px 0}
+.fld.wide{grid-template-columns:1fr 170px}
+.fld label{font-size:12.5px;color:var(--muted)}
+.fld input,.fld select{width:100%;padding:4px 6px;border:1px solid var(--line);border-radius:5px;background:var(--bg);font-family:var(--font-mono);font-size:12.5px}
+.fld select{font-family:var(--font-body)}
+.fld .u{font-size:11.5px;color:var(--muted)}
+.sect{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:16px 0 4px;font-weight:600;border-top:1px solid var(--line);padding-top:12px}
+.helper{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px;margin:6px 0}
+.helper .fld{grid-template-columns:1fr 150px}
+.kv{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:12.5px}
+.kv span:nth-child(odd){color:var(--muted)}
+.kv span:nth-child(even){font-family:var(--font-mono);text-align:right;font-variant-numeric:tabular-nums}
+.note{font-size:12px;color:var(--muted);margin:8px 0}
+.panel .row{display:flex;gap:6px;margin-top:14px;flex-wrap:wrap}
+.panel ol{padding-left:18px;margin:6px 0;font-size:12.5px;color:var(--muted)}
+.panel ol li{margin:3px 0}
+.frow{display:grid;grid-template-columns:1fr 60px 30px;gap:6px;align-items:center;margin:5px 0}
+.frow label{font-size:12.5px;line-height:1.25}
+.frow small{display:block;color:var(--muted);font-size:11.5px}
+.frow input{width:100%;padding:4px 6px;border:1px solid var(--line);border-radius:5px;background:var(--bg);font-family:var(--font-mono);font-size:12.5px}
+.btn.xs{padding:2px 0;font-size:13px}
+table.mini{font-size:12px;margin-top:8px}
+table.mini th,table.mini td{padding:3px 4px}
+table.mini th{position:static}
+table.mini tbody tr{cursor:default}
+.about{font-size:12px;color:var(--muted);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin-bottom:14px;line-height:1.45}
+.about b{color:var(--ink)}
+.msg{font-size:12px;border-radius:6px;padding:6px 8px;margin:4px 0}
+.msg.w{background:var(--warn-soft);color:var(--warn)} .msg.e{background:var(--bad-soft);color:var(--bad)}
+
+.emptyhint{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);max-width:420px;background:var(--surface);border:1px dashed var(--line);border-radius:10px;padding:16px 18px;font-size:13px;line-height:1.6;color:var(--muted);pointer-events:none}
+.emptyhint b{color:var(--ink)}
+.ghost{position:fixed;pointer-events:none;z-index:50;background:var(--surface);border:1px solid var(--accent);border-radius:6px;padding:4px 8px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.15)}
+
+/* modal */
+.modal{position:fixed;inset:0;background:rgba(10,16,22,.45);display:none;align-items:center;justify-content:center;z-index:60;padding:16px}
+.modal.on{display:flex}
+.mbox{background:var(--surface);border-radius:10px;border:1px solid var(--line);width:min(760px,100%);max-height:90%;display:flex;flex-direction:column}
+.mbox header{border-radius:10px 10px 0 0}
+.mbox .mb{padding:14px;overflow:auto;display:flex;flex-direction:column;gap:8px}
+.mbox textarea{width:100%;min-height:240px;font-family:var(--font-mono);font-size:12px;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);resize:vertical}
+
+@media (max-width: 980px){
+  body{overflow:auto}
+  .app{height:auto;min-height:100%}
+  .main{grid-template-columns:1fr}
+  .palette{display:flex;flex-wrap:wrap;gap:4px;border-right:none;border-bottom:1px solid var(--line);max-height:none}
+  .palette h2{width:100%;margin:6px 4px 0}
+  .palette .hint{display:none}
+  .canvas-wrap{height:62vh}
+  .panel{border-left:none;border-top:1px solid var(--line)}
+}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+
+.app{grid-template-rows:auto auto 1fr}
+.runbar{display:flex;align-items:center;gap:8px;padding:6px 14px;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:wrap;font-size:13px}
+.runbar label{color:var(--muted)}
+.runbar select{padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);max-width:240px}
+.runbar .sep{width:1px;height:22px;background:var(--line);margin:0 4px}
+.runbar .chk{display:flex;align-items:center;gap:5px}
+.status{margin-left:auto;font-size:12.5px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.status.ok{color:var(--ok)} .status.warn{color:var(--warn);background:var(--warn-soft);border-color:transparent} .status.bad{color:var(--bad);background:var(--bad-soft);border-color:transparent}
+.drawer.stale .dbody{opacity:.45}
+#cv.stale .nres{opacity:.35}
+.tag rect{stroke-width:1.2} .tag text{font-size:9.5px;font-family:var(--font-mono);font-weight:500}
+.tag.fx rect{fill:var(--surface);stroke:var(--muted)} .tag.fx text{fill:var(--muted)}
+.tag.sv rect{fill:var(--accent);stroke:var(--accent)} .tag.sv text{fill:var(--surface)}
+.fld.m{grid-template-columns:1fr 76px 88px 44px}
+.fld input.solved{color:var(--accent);background:var(--accent-soft);border-color:transparent}
+.btn.xs2{padding:2px 9px;font-size:12px}
+.pad{padding:8px 14px;margin:0}
+.caserow{display:flex;gap:6px;align-items:center}
+.caserow input{flex:1;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+.ugrid{margin:2px 0 6px}.ugrid summary{cursor:pointer;font-size:12px;color:var(--accent,#0a6e99);margin:2px 0 6px}
+.about .ded{font-style:italic;margin:6px 0 8px;line-height:1.45}
+#rep{position:fixed;inset:0;z-index:2000;background:#525659;overflow:auto}
+#rep .rtool{position:sticky;top:0;z-index:2;display:flex;gap:10px;align-items:center;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--line);font-size:13px}
+#rep .rtip{color:var(--muted);font-size:12px}
+.about .docs{margin-top:8px;font-style:normal} .about .docs a{color:var(--accent);font-weight:600}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Line Hydraulics Builder</h1>
+    <span class="sub">Incompressible flow · Darcy–Colebrook friction · Hooper 2K fittings · network solve · v1.0 by Johann Cruz</span>
+    <div class="tb">
+      <button class="btn" id="bUndo" title="Undo (Ctrl+Z)">Undo</button>
+      <button class="btn danger" id="bClear">Clear</button>
+      <button class="btn" id="bImport">Import</button>
+      <button class="btn" id="bPrint">Print report</button>
+      <button class="btn" id="bExport">Export</button>
+    </div>
+  </header>
+  <div class="runbar">
+    <label for="caseSel">Case</label><select id="caseSel"></select><button class="btn" id="bCases">Cases…</button>
+    <span class="sep"></span>
+    <button class="btn primary" id="bRun" title="Run (Ctrl+Enter)">Run</button>
+    <button class="btn" id="bRunAll">Run all cases</button>
+    <label class="chk" for="autoRun"><input type="checkbox" id="autoRun"> Auto-run</label>
+    <span class="status" id="status" role="status">Not run yet</span>
+  </div>
+  <div class="main">
+    <aside class="palette" id="palette" aria-label="Units"></aside>
+    <div class="center">
+      <div class="canvas-wrap">
+        <svg id="cv" aria-label="Line diagram">
+          <defs>
+            <pattern id="gridp" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" class="gridline" fill="none"/></pattern>
+            <marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker>
+          </defs>
+          <rect id="gridbg" x="-50000" y="-50000" width="100000" height="100000" fill="url(#gridp)"/>
+          <g id="vp"><g id="links"></g><g id="nodes"></g><path id="tmp" class="tmp" d=""/></g>
+        </svg>
+        <div class="emptyhint" id="emptyhint"><b>Start here</b><br>1. Click <b>Source</b> in the list on the left.<br>2. Click <b>Pipe segment</b>: it is added after the selected unit and connected.<br>3. Click <b>Sink</b> to end the line, then set flows and pressures in the panel on the right.</div>
+        <div class="zoombar">
+          <button class="btn" id="zOut" title="Zoom out">−</button>
+          <button class="btn" id="zFit" title="Fit diagram">Fit</button>
+          <button class="btn" id="zIn" title="Zoom in">+</button>
+        </div>
+      </div>
+      <section class="drawer" id="drawer">
+        <div class="tabs" role="tablist">
+          <button class="tab on" data-tab="lines">Line summary</button>
+          <button class="tab" data-tab="elems">Element results</button>
+          <button class="tab" data-tab="solved">Solved values</button>
+          <button class="tab" data-tab="checks" id="tabChecks">Checks</button>
+          <button class="tab" data-tab="cmp">Case comparison</button>
+          <span class="spacer"></span>
+          <button class="tab" id="bDrawer" title="Show or hide results">Hide results</button>
+        </div>
+        <div class="dbody" id="dbody"></div>
+      </section>
+    </div>
+    <aside class="panel" id="panel" aria-label="Properties"></aside>
+  </div>
+</div>
+<div class="modal" id="modal" role="dialog" aria-modal="true">
+  <div class="mbox">
+    <header><h1 id="mTitle">Export</h1><div class="tb"><button class="btn" id="mClose">Close</button></div></header>
+    <div class="mb" id="mBody"></div>
+  </div>
+</div>
+<script>
+/*ENGINE-START*/
+const G = 9.81;
+// Hooper 2K coefficients [K1, K∞] (Chem Eng 24 Aug 1981; run-through tee K∞ as corrected to 0.05).
+const FIT = {
+  ell90_thr:{grp:'90° elbow',  name:'Standard R/D=1, threaded', k1:800, ki:0.40},
+  ell90_flg:{grp:'90° elbow',  name:'Standard R/D=1, flanged/welded', k1:800, ki:0.25},
+  ell90_lr: {grp:'90° elbow',  name:'Long radius R/D=1.5', k1:800, ki:0.20},
+  ell90_m1: {grp:'90° elbow',  name:'Mitred, 1 weld (90°)', k1:1000, ki:1.15},
+  ell90_m2: {grp:'90° elbow',  name:'Mitred, 2 welds (45°)', k1:800, ki:0.35},
+  ell90_m3: {grp:'90° elbow',  name:'Mitred, 3 welds (30°)', k1:800, ki:0.30},
+  ell45_std:{grp:'45° elbow',  name:'Standard R/D=1', k1:500, ki:0.20},
+  ell45_lr: {grp:'45° elbow',  name:'Long radius R/D=1.5', k1:500, ki:0.15},
+  ell45_m1: {grp:'45° elbow',  name:'Mitred, 1 weld (45°)', k1:500, ki:0.25},
+  ell45_m2: {grp:'45° elbow',  name:'Mitred, 2 welds (22.5°)', k1:500, ki:0.15},
+  b180_thr: {grp:'180° bend',  name:'Standard R/D=1, threaded', k1:1000, ki:0.60},
+  b180_flg: {grp:'180° bend',  name:'Standard R/D=1, flanged/welded', k1:1000, ki:0.35},
+  b180_lr:  {grp:'180° bend',  name:'Long radius R/D=1.5', k1:1000, ki:0.30},
+  teeb_thr: {grp:'Tee, flow through branch', name:'Standard, threaded', k1:500, ki:0.70},
+  teeb_lrt: {grp:'Tee, flow through branch', name:'Long radius, threaded', k1:800, ki:0.40},
+  teeb_flg: {grp:'Tee, flow through branch', name:'Standard, flanged/welded', k1:800, ki:0.80},
+  teeb_stb: {grp:'Tee, flow through branch', name:'Stub-in branch', k1:1000, ki:1.00},
+  teer_thr: {grp:'Tee, flow through run', name:'Threaded', k1:200, ki:0.10},
+  teer_flg: {grp:'Tee, flow through run', name:'Flanged/welded', k1:150, ki:0.05},
+  teer_stb: {grp:'Tee, flow through run', name:'Stub-in branch', k1:100, ki:0.00},
+  vg_full:  {grp:'Gate / ball / plug valve', name:'Full bore, β=1.0', k1:300, ki:0.10},
+  vg_09:    {grp:'Gate / ball / plug valve', name:'Reduced bore, β=0.9', k1:500, ki:0.15},
+  vg_08:    {grp:'Gate / ball / plug valve', name:'Reduced bore, β=0.8', k1:1000, ki:0.25},
+  vglobe:   {grp:'Globe valve', name:'Standard', k1:1500, ki:4.0},
+  vglobe_y: {grp:'Globe valve', name:'Angle or Y-type', k1:1000, ki:2.0},
+  vdia:     {grp:'Diaphragm valve', name:'Dam type', k1:1000, ki:2.0},
+  vbfly:    {grp:'Butterfly valve', name:'Butterfly', k1:800, ki:0.25},
+  chk_lift: {grp:'Check valve', name:'Lift', k1:2000, ki:10.0},
+  chk_swing:{grp:'Check valve', name:'Swing', k1:1500, ki:1.50},
+  chk_tilt: {grp:'Check valve', name:'Tilting disc', k1:1000, ki:0.50},
+};
+const MERGE = new Set(['splitter','combiner','junction']);
+const ELEM = new Set(['segment','reducer','pump','cv','orifice','fixed','userk','fitting']);
+
+function colebrook(Re, rr){
+  let f = 0.25/Math.pow(Math.log10(rr/3.7 + 5.74/Math.pow(Re,0.9)),2);
+  for(let i=0;i<60;i++){ const x=-2*Math.log10(rr/3.7 + 2.51/(Re*Math.sqrt(f))); const fn=1/(x*x); if(Math.abs(fn-f)<1e-14){ f=fn; break; } f=fn; }
+  return f;
+}
+// Laminar 64/Re up to Re 1800; Colebrook–White from Re 2100 (same basis as a hand calc using the turbulent
+// formula above 2100, so the transition zone is taken at the higher, conservative value); short straight ramp
+// between 1800 and 2100 so the solver never meets a jump.
+const RE_LAM=1800, RE_TURB=2100;
+function friction(Re, rr){
+  if(!(Re>0)) return 0;
+  if(Re<=RE_LAM) return 64/Re;
+  if(Re>=RE_TURB) return colebrook(Re, rr);
+  return 64/RE_LAM + (colebrook(RE_TURB, rr) - 64/RE_LAM)*(Re-RE_LAM)/(RE_TURB-RE_LAM);
+}
+function exitK(Re){ if(Re<=RE_LAM) return 2; if(Re>=RE_TURB) return 1; return 2-(Re-RE_LAM)/(RE_TURB-RE_LAM); }
+function hyd(Q, D, rho, mu){ // Q m3/h (>=0), D mm, rho kg/m3, mu cP
+  const A = Math.PI*Math.pow(D/1000,2)/4;
+  const v = Q>0 && D>0 ? Q/3600/A : 0;
+  const Re = v>0 ? rho*v*(D/1000)/(mu/1000) : 0;
+  return {A, v, Re, vh: rho*v*v/2};
+}
+// Thin sharp-edged orifice (Hooper 1988), K on pipe velocity; plate thickness t (mm) applies Hooper's thick-orifice factor.
+function orificeK(b, Re, D, t){
+  if(!(Re>0) || !(b>0 && b<1)) return 0;
+  let K = Re<=2500 ? (2.72 + b*b*(120/Re-1))*(1-b*b)*(1/Math.pow(b,4)-1) : (2.72 - b*b*4000/Re)*(1-b*b)*(1/Math.pow(b,4)-1);
+  if(t>0){
+    if(t/(b*D) > 5){ // very thick plate: treat as a sudden contraction then a sudden expansion (Hooper 1988)
+      const r=1/b, f1=friction(Re, 0.045/D), d=b*D, Red=Re/b, fd=friction(Red, 0.045/d);
+      const Kc = Re<=2500 ? (1.2+160/Re)*(Math.pow(r,4)-1) : (0.6+0.48*f1)*r*r*(r*r-1);          // on pipe velocity
+      const Ke = Red<4000 ? 2*(1-Math.pow(b,4)) : (1+0.8*fd)*Math.pow(1-b*b,2);                   // on bore velocity
+      return Kc + Ke/Math.pow(b,4); }
+    K *= 0.584 + 0.0936/(Math.pow(t/(b*D),1.5) + 0.225); }
+  return K;
+}
+// Pump curve: quadratic through shutoff (0,H0), rated (Qr,Hr) and runout (Qx,Hx), per pump at 100% speed.
+// Affinity laws for speed. One block is one pump; draw parallel pumps as separate blocks.
+function pumpCurve(p){ const H0=+p.H0, Qr=+p.Qr, Hr=+p.Hr, Qx=+p.Qx, Hx=+p.Hx;
+  const c=((Hx-H0)/Qx-(Hr-H0)/Qr)/(Qx-Qr), b=(Hr-H0)/Qr-c*Qr; return {a:H0,b,c}; }
+function pumpH(p, q){ const s=(+p.speed||100)/100, k=pumpCurve(p), qp=q/s; return s*s*(k.a+k.b*qp+k.c*qp*qp); }
+const IEC_MOTORS=[0.37,0.55,0.75,1.1,1.5,2.2,3,4,5.5,7.5,11,15,18.5,22,30,37,45,55,75,90,110,132,160,200,250,315,355,400,450,500,560,630,710,800,900,1000,1250,1600,2000];
+const PC_WATER=22064; // kPa, critical pressure of water (IEC 60534 FF factor)
+const RHO_W15=999.0;
+// Display hook for messages: the page sets UFMT to show values in the chosen units. The solver itself always works in SI.
+var UFMT=null;
+const SI_LBL={Q:'m³/h',Pg:'kPa g',Pa:'kPa a',dP:'kPa',L:'m',H:'m',D:'mm',v:'m/s'};
+function fq(k,v,d){ return UFMT ? UFMT(k,v,d) : (+v).toFixed(d)+' '+SI_LBL[k]; }
+const CV_K=10*1.1560992283536566; // Cv = 1.1561 Kv; with Q in m3/h and ΔP in kPa: Cv = 11.561·Q·√(SG/ΔP) // kg/m3, water at 15 °C: reference for valve specific gravity (ISA-75.01 / IEC 60534)
+function reducerAngle(p){ return p.type==='sudden' ? 180 : p.type==='conc' ? 30 : (+p.angle||180); }
+function fitK(k1, ki, Re, D){ return Re>0 ? k1/Re + ki*(1 + 25.4/D) : 0; }
+function erosional(rho, C){ return C/Math.sqrt(rho*0.0624279606)*0.3048; } // API RP 14E, m/s
+
+// Pressure change across one element, in kPa (P_in − P_out). q in m3/h (sign = direction), fv = value being found.
+function elemDetail(e, q, fv){
+  const n=e.n, p=n.p, rho=e.rho, mu=e.mu, sg=q<0?-1:1, Q=Math.abs(q), D=e.Din;
+  const o={dPfric:0, dPfit:0, dPstat:0, dPoth:0, dPpump:0, v:0, Re:0, D};
+  const hy = D>0 ? hyd(Q,D,rho,mu) : {v:0, Re:0, vh:0};
+  o.v=hy.v; o.Re=hy.Re; const vh=hy.vh/1000;
+  switch(n.type){
+    case 'segment': {
+      const eps = +p.eps>=0 ? +p.eps : 0.045;
+      const f = friction(hy.Re, eps/D), Leff=(+p.L||0)*(1+(+p.allow||0)/100);
+      o.f=f; o.Leff=Leff; o.dPfric = sg*f*Leff/(D/1000)*vh; o.dPstat = rho*G*(+p.dz||0)/1000;
+      o.kpa100 = Leff>0 ? Math.abs(o.dPfric)/Leff*100 : 0;
+      let Ks=0; o.fitRows=[];
+      Object.entries(p.fits||{}).forEach(([k,c])=>{ const ft=FIT[k]; if(!ft || !(+c>0)) return; const K=fitK(ft.k1,ft.ki,hy.Re,D); Ks+=K*(+c); o.fitRows.push({k, c:+c, K, dP:sg*K*(+c)*vh}); });
+      if(p.entr && p.entr!=='none' && hy.Re>0){ const K=160/hy.Re + (p.entr==='projecting'?1.0:0.5); Ks+=K; o.fitRows.push({k:'entr', c:1, K, dP:sg*K*vh}); }
+      if(p.exit===true && hy.Re>0){ const K=exitK(hy.Re); Ks+=K; o.fitRows.push({k:'exit', c:1, K, dP:sg*K*vh}); }
+      // a check valve shuts against reverse flow: model it as a very large K in the reverse direction
+      if(q<0 && Object.entries(p.fits||{}).some(([k,c])=>/^chk/.test(k) && +c>0)){ const K=1e12; Ks+=K; o.fitRows.push({k:'chkrev', c:1, K, dP:sg*K*vh}); o.chkShut=true; }
+      o.Ksum=Ks; o.dPfit=sg*Ks*vh; break; }
+    case 'fitting': { const ft=FIT[p.kind]||FIT.ell90_lr; const K=fitK(ft.k1,ft.ki,hy.Re,D); const c=+p.n>=0?+p.n:1; o.K=K; o.dPfit=sg*K*c*vh; break; }
+    case 'userk': { o.K=+p.K||0; o.dPfit=sg*o.K*vh; break; }
+    case 'orifice': {
+      if(p.spec==='find'){ o.dPfit=fv; break; }
+      const b = p.spec==='bore' ? (+p.d)/D : +p.beta; o.beta=b; o.bore=b*D;
+      const K=orificeK(b, hy.Re, D, +p.t||0); o.K=K; o.dPfit=sg*K*vh; break; }
+    case 'reducer': { const D2=+p.D2, th=reducerAngle(p)*Math.PI/180, f1=friction(hy.Re, (e.eps>=0?e.eps:0.045)/D); let K=0;
+      if(hy.Re>0 && D2<D){ const r=D/D2; K = hy.Re<=2500 ? (1.2+160/hy.Re)*(Math.pow(r,4)-1) : (0.6+0.48*f1)*r*r*(r*r-1); K *= th<Math.PI/4 ? 1.6*Math.sin(th/2) : Math.sqrt(Math.sin(th/2)); }
+      else if(hy.Re>0 && D2>D){ const b=D/D2; K = hy.Re<4000 ? 2*(1-Math.pow(b,4)) : (1+0.8*f1)*Math.pow(1-b*b,2); if(th<Math.PI/4) K *= 2.6*Math.sin(th/2); }
+      o.K=K; o.dPfit=sg*K*vh; break; }
+    case 'cv': {
+      if(p.cvMode && p.cvMode!=='fixed'){ o.dPoth=fv; o.Cv = fv>0 ? CV_K*Q*Math.sqrt((rho/RHO_W15)/fv) : null; }
+      else { const Cv=+p.Cv; o.Cv=Cv; o.dPoth = Cv>0 ? sg*(rho/RHO_W15)*Math.pow(CV_K*Q/Cv,2) : 0; }
+      break; }
+    case 'fixed': { o.dPoth=(+p.dP||0)*q/Math.sqrt(q*q+1e-4); break; }
+    case 'pump': { const H = p.hMode==='find' ? fv : p.hMode==='curve' ? pumpH(p,q) : (+p.H||0); o.H=H; o.dPpump = -rho*G*H/1000; break; }
+  }
+  o.h = o.dPfric + o.dPfit + o.dPstat + o.dPoth + o.dPpump;
+  return o;
+}
+
+function linsolve(A, b){
+  const n=b.length, M=A.map((r,i)=>[...r, b[i]]);
+  let scale=0; A.forEach(r=>r.forEach(v=>{ if(Math.abs(v)>scale) scale=Math.abs(v); }));
+  for(let c=0;c<n;c++){
+    let pr=c; for(let r=c+1;r<n;r++) if(Math.abs(M[r][c])>Math.abs(M[pr][c])) pr=r;
+    if(Math.abs(M[pr][c]) < 1e-11*Math.max(1,scale)) return null;
+    [M[c],M[pr]]=[M[pr],M[c]];
+    for(let r=c+1;r<n;r++){ const f=M[r][c]/M[c][c]; if(f) for(let k=c;k<=n;k++) M[r][k]-=f*M[c][k]; }
+  }
+  const x=new Array(n);
+  for(let r=n-1;r>=0;r--){ let s=M[r][n]; for(let k=r+1;k<n;k++) s-=M[r][k]*x[k]; x[r]=s/M[r][r]; }
+  return x;
+}
+
+function solve(model, set){
+  set = set || {};
+  const nodes=model.nodes, byId={}; nodes.forEach(n=>byId[n.id]=n);
+  const links=model.links.filter(l=>byId[l.from]&&byId[l.to]&&l.from!==l.to);
+  const inL={}, outL={}; nodes.forEach(n=>{inL[n.id]=[];outL[n.id]=[];});
+  links.forEach(l=>{ outL[l.from].push(l); inL[l.to].push(l); });
+  const checks=[], res={}; nodes.forEach(n=>res[n.id]={msgs:[]});
+  const add=(sev,id,msg,act)=>{ checks.push({sev,id,msg,act}); if(id && res[id]) res[id].msgs.push({sev,msg,act}); };
+  const out=(ok,status,extra)=>Object.assign({ok,status,res,lres:{},checks,lines:[],solved:[],iters:0},extra||{});
+  const name=id=>byId[id]?byId[id].name:'';
+
+  // ---- 1. connections and inputs
+  if(!nodes.some(n=>n.type==='source')) add('e',null,'Add a Source.');
+  nodes.forEach(n=>{
+    const ni=inL[n.id].length, no=outL[n.id].length, t=n.type, p=n.p;
+    if(t==='source'){ if(ni) add('e',n.id,'A Source cannot have an inlet.'); if(no!==1) add('e',n.id, no?'A Source feeds one unit. Put a Splitter after it.':'Connect this Source to a unit.');
+      if(!(+p.rho>0) || !(+p.mu>0)) add('e',n.id,'Enter a density and viscosity above zero.'); }
+    else if(t==='sink'){ if(no) add('e',n.id,'A Sink cannot have an outlet.'); if(ni!==1) add('e',n.id, ni?'A Sink takes one inlet. Put a Combiner before it.':'Connect a unit to this Sink.'); }
+    else if(ELEM.has(t)){ if(ni!==1) add('e',n.id, ni?'More than one line enters here. Put a Combiner before it.':'Nothing is connected to this inlet.'); if(no!==1) add('e',n.id, no?'More than one line leaves here. Put a Splitter after it.':'Nothing is connected to this outlet. End the line with a Sink.'); }
+    else if(t==='splitter'){ if(ni!==1) add('e',n.id, ni?'A Splitter takes one inlet.':'Nothing is connected to this inlet.'); if(no<1) add('e',n.id,'This Splitter has no outlets.'); }
+    else if(t==='combiner'){ if(no!==1) add('e',n.id, no?'A Combiner has one outlet.':'Nothing is connected to this outlet.'); if(ni<1) add('e',n.id,'This Combiner has no inlets.'); }
+    if(t==='segment' && !(+p.D>0)) add('e',n.id,'Enter the inside diameter.');
+    if(t==='reducer' && !(+p.D2>0)) add('e',n.id,'Enter the outlet diameter.');
+    if(t==='orifice' && p.spec==='beta' && !(+p.beta>0 && +p.beta<1)) add('e',n.id,'β ratio must be between 0 and 1.');
+    if(t==='orifice' && p.spec==='bore' && !(+p.d>0)) add('e',n.id,'Enter the bore diameter.');
+    if(t==='reducer' && p.Dmode==='override' && !(+p.D1>0)) add('e',n.id,'Enter the inlet diameter, or set Inlet ID to From pipe.');
+    if(t==='cv' && (p.cvMode==='fixed'||!p.cvMode) && !(+p.Cv>0)) add('e',n.id,'Enter the valve Cv, or choose another valve mode.');
+    if(t==='cv' && p.cvMode==='flow' && !isFinite(parseFloat(p.Qset))) add('e',n.id,'Enter the flow setpoint.');
+    if(t==='cv' && (p.cvMode==='pdown'||p.cvMode==='pup') && !isFinite(parseFloat(p.Pset))) add('e',n.id,'Enter the pressure setpoint.');
+    if(t==='pump' && p.hMode==='curve'){ const H0=+p.H0, Qr=+p.Qr, Hr=+p.Hr, Qx=+p.Qx, Hx=+p.Hx;
+      if(!(Qr>0 && Qx>Qr)) add('e',n.id,'Pump curve: rated flow must be above zero and runout flow above rated flow.');
+      else if(!(H0>=Hr && Hr>=Hx && Hx>=0)) add('e',n.id,'Pump curve: head must fall from shutoff to rated to runout.');
+      if(!(+p.speed>0)) add('e',n.id,'Enter the pump speed in % (100 = rated speed).'); }
+  });
+  if(checks.some(c=>c.sev==='e')) return out(false,'Fix the errors in Checks, then run.');
+
+  // ---- 2. pressure points: one per connection, merged across Splitters and Combiners
+  const parent={}; links.forEach(l=>parent[l.id]=l.id);
+  const find=x=>parent[x]===x?x:(parent[x]=find(parent[x]));
+  nodes.forEach(n=>{ if(MERGE.has(n.type)){ const ls=[...inL[n.id],...outL[n.id]]; for(let i=1;i<ls.length;i++){ const a=find(ls[0].id), b=find(ls[i].id); if(a!==b) parent[a]=b; } } });
+  const pnIdx={}; let NP=0; links.forEach(l=>{ const r=find(l.id); if(!(r in pnIdx)) pnIdx[r]=NP++; });
+  const pn=l=>pnIdx[find(l.id)];
+  const unitPn=n=> n.type==='source' ? pn(outL[n.id][0]) : (inL[n.id][0] ? pn(inL[n.id][0]) : pn(outL[n.id][0]));
+
+  // ---- 3. elements, boundaries, diameters
+  const els=nodes.filter(n=>ELEM.has(n.type)).map(n=>({n, a:pn(inL[n.id][0]), b:pn(outL[n.id][0])}));
+  const eIdx={}; els.forEach((e,i)=>eIdx[e.n.id]=i);
+  const srcs=nodes.filter(n=>n.type==='source').map(n=>({n, pn:unitPn(n)}));
+  const snks=nodes.filter(n=>n.type==='sink').map(n=>({n, pn:unitPn(n)}));
+  const sIdx={}, wIdx={}; srcs.forEach((s,i)=>sIdx[s.n.id]=i); snks.forEach((s,i)=>wIdx[s.n.id]=i);
+  const DinM={};
+  function downD(n, seen){ for(const l of outL[n.id]){ const t=byId[l.to]; if(seen.has(t.id)) continue; seen.add(t.id);
+      if(t.type==='segment') return +t.p.D; if(t.type==='reducer') continue; const d=downD(t,seen); if(d) return d; } return null; }
+  function Din(n, seen=new Set()){
+    if(n.id in DinM) return DinM[n.id]; if(seen.has(n.id)) return null; seen.add(n.id);
+    let d=null;
+    if(n.type==='segment') d=+n.p.D;
+    else if(n.type==='reducer' && n.p.Dmode==='override' && +n.p.D1>0) d=+n.p.D1;
+    else { const il=inL[n.id][0]; if(il){ const u=byId[il.from]; d = u.type==='segment'?+u.p.D : u.type==='reducer'?+u.p.D2 : (ELEM.has(u.type)||MERGE.has(u.type)) ? Din(u,seen) : null; } }
+    if(!d) d=downD(n,new Set([n.id]));
+    return DinM[n.id]=d;
+  }
+  const epsM={};
+  function epsIn(n, seen=new Set()){ if(n.id in epsM) return epsM[n.id]; if(seen.has(n.id)) return null; seen.add(n.id);
+    let v=null; if(n.type==='segment') v=+n.p.eps>=0?+n.p.eps:null;
+    else { const il=inL[n.id][0]; if(il){ const u=byId[il.from]; if(ELEM.has(u.type)||MERGE.has(u.type)) v=epsIn(u,seen); } }
+    return epsM[n.id]=v; }
+  els.forEach(e=>{ e.Din=Din(e.n); e.Dout = e.n.type==='reducer' ? +e.n.p.D2 : e.Din; const ev=epsIn(e.n); e.eps = ev!=null ? ev : 0.045;
+    if(!(e.Din>0) && !['pump','fixed','cv'].includes(e.n.type)) add('e',e.n.id,'No pipe diameter found. Connect a Pipe segment next to this unit.');
+    if(e.n.type==='orifice' && e.n.p.spec==='bore' && e.Din>0 && !(+e.n.p.d < e.Din)) add('e',e.n.id,`The bore (${fq('D',+e.n.p.d,1)}) must be smaller than the pipe ID (${fq('D',e.Din,1)}).`);
+    // diameter change straight from one unit to the next with no reducer
+    const il=inL[e.n.id][0], u=il&&byId[il.from];
+    if(u && (u.type==='segment'||u.type==='reducer') && e.n.type!=='reducer'){ const du = u.type==='segment'?+u.p.D : u.type==='reducer'?+u.p.D2 : Din(u);
+      const dn = e.n.type==='segment' ? +e.n.p.D : null;
+      if(du>0 && dn>0 && Math.abs(du-dn)>0.5) add('w',e.n.id,`The pipe changes from ${fq('D',du,1)} to ${fq('D',dn,1)} here with no reducer, so the size change is not counted.`,'insRed'); }
+    if(e.n.type==='reducer' && e.n.p.Dmode==='override' && u && ELEM.has(u.type)){ const du = u.type==='segment'?+u.p.D : u.type==='reducer'?+u.p.D2 : Din(u);
+      if(du>0 && Math.abs(du-(+e.n.p.D1))>0.5) add('w',e.n.id,`Inlet ID ${fq('D',+e.n.p.D1,1)} does not match the upstream pipe (${fq('D',du,1)}).`); }
+  });
+
+  // ---- 4. unknowns and fixed values
+  const finds=[]; els.forEach(e=>{ if((e.n.type==='pump'&&e.n.p.hMode==='find')||(e.n.type==='cv'&&e.n.p.cvMode&&e.n.p.cvMode!=='fixed')||(e.n.type==='orifice'&&e.n.p.spec==='find')){ e.fi=finds.length; finds.push(e); } });
+  const NE=els.length, NS=srcs.length, NW=snks.length, NF=finds.length;
+  const iE=NP, iS=NP+NE, iW=iS+NS, iF=iW+NW, N=iF+NF;
+  els.forEach(e=>{ if(e.fi!=null) e.xf=iF+e.fi; });
+  const specs=[];   // {i, v, comp-owner unit}
+  srcs.forEach((s,i)=>{ const p=s.n.p; if(p.qMode!=='solved') specs.push({i:iS+i, v:+p.Q||0, u:s.n.id}); if(p.pMode!=='solved') specs.push({i:s.pn, v:+p.P||0, u:s.n.id, isP:true}); });
+  snks.forEach((s,i)=>{ const p=s.n.p; if(p.qMode==='fixed') specs.push({i:iW+i, v:+p.Q||0, u:s.n.id}); if(p.pMode==='fixed') specs.push({i:s.pn, v:+p.P||0, u:s.n.id, isP:true}); });
+  // control valve setpoints: each brings its own equation for its own unknown ΔP
+  els.forEach((e,i)=>{ const p=e.n.p; if(e.n.type!=='cv') return;
+    if(p.cvMode==='flow') specs.push({i:iE+i, v:parseFloat(p.Qset), u:e.n.id});
+    if(p.cvMode==='pdown') specs.push({i:e.b, v:parseFloat(p.Pset), u:e.n.id, isP:true});
+    if(p.cvMode==='pup') specs.push({i:e.a, v:parseFloat(p.Pset), u:e.n.id, isP:true}); });
+  function linkRef(l){ const f=byId[l.from], t=byId[l.to];
+    if(ELEM.has(f.type)) return iE+eIdx[f.id]; if(f.type==='source') return iS+sIdx[f.id];
+    if(ELEM.has(t.type)) return iE+eIdx[t.id]; if(t.type==='sink') return iW+wIdx[t.id]; return null; }
+  const splitEqs=[];
+  nodes.filter(n=>n.type==='splitter' && n.p.bal!=='balanced').forEach(n=>{
+    const inRef=linkRef(inL[n.id][0]); const outs=outL[n.id];
+    const refs=outs.map(linkRef);
+    if(inRef==null || refs.some(r=>r==null)){ add('e',n.id,'Put a Pipe segment between this Splitter and the next Splitter or Combiner, so each outlet flow can be set.'); return; }
+    const val=l=>(l.split!=null && l.split!=='' && isFinite(+l.split)) ? +l.split : null;
+    const given=outs.map((l,i)=>({i, v:val(l)})).filter(o=>o.v!=null), blanks=outs.map((l,i)=>i).filter(i=>val(outs[i])==null);
+    const pct=n.p.mode!=='flow';
+    if(pct){ const sum=given.reduce((s,o)=>s+o.v,0);
+      if(!blanks.length && Math.abs(sum-100)>0.01) add('e',n.id,`Outlet shares add to ${sum.toFixed(2)}%. They must add to 100%, or leave one outlet blank.`);
+      if(blanks.length && sum>100.0001) add('e',n.id,`Outlet shares add to ${sum.toFixed(2)}%, more than 100%.`); }
+    let eqGiven = blanks.length ? given : given.slice(0,-1);
+    eqGiven.forEach(o=>{ const r=refs[o.i]; splitEqs.push({u:n.id, f: pct ? (x=>x[r]-o.v/100*x[inRef]) : (x=>x[r]-o.v)}); });
+    for(let j=1;j<blanks.length;j++){ const r0=refs[blanks[0]], rj=refs[blanks[j]]; splitEqs.push({u:n.id, f:x=>x[rj]-x[r0]}); }
+    n._chk = {pct, given, blanks, refs, inRef, outs};
+  });
+  if(checks.some(c=>c.sev==='e')) return out(false,'Fix the errors in Checks, then run.');
+
+  // ---- 5. count fixed values in each connected part
+  const cp=Array.from({length:NP},(_,i)=>i); const cf=x=>cp[x]===x?x:(cp[x]=cf(cp[x]));
+  els.forEach(e=>{ const a=cf(e.a), b=cf(e.b); if(a!==b) cp[a]=b; });
+  const unitComp=id=>{ const n=byId[id]; if(ELEM.has(n.type)) return cf(els[eIdx[id]].a); return cf(unitPn(n)); };
+  const parts={};
+  const P_=c=>parts[c]||(parts[c]={unk:0, eq:0, hasP:false, unit:null});
+  for(let i=0;i<NP;i++){ const c=P_(cf(i)); c.unk++; c.eq++; }
+  els.forEach(e=>{ const c=P_(cf(e.a)); c.unk++; c.eq++; if(e.fi!=null) c.unk++; });
+  srcs.forEach(s=>{ const c=P_(cf(s.pn)); c.unk++; if(!c.unit) c.unit=s.n.id; });
+  snks.forEach(s=>{ const c=P_(cf(s.pn)); c.unk++; if(!c.unit) c.unit=s.n.id; });
+  specs.forEach(sp=>{ const c=P_(unitComp(sp.u)); c.eq++; if(sp.isP) c.hasP=true; });
+  splitEqs.forEach(se=>{ P_(unitComp(se.u)).eq++; });
+  const bad=[];
+  Object.values(parts).forEach(c=>{
+    const where = c.unit ? `the part with ${name(c.unit)}` : 'one part of the diagram';
+    if(!c.hasP) bad.push({u:c.unit, m:`No pressure is fixed in ${where}. Set the pressure at one Source or Sink to Fixed.`});
+    else if(c.eq<c.unk){ const d=c.unk-c.eq; bad.push({u:c.unit, m:`${d} more fixed value${d>1?'s are':' is'} needed in ${where}. Set a Source or Sink flow or pressure to Fixed, or set a Splitter to Fixed shares.`}); }
+    else if(c.eq>c.unk){ const d=c.eq-c.unk; bad.push({u:c.unit, m:`${d} fixed value${d>1?'s':''} too many in ${where}. Set a Source or Sink flow or pressure to Solved, set a Splitter to Balanced, or set a Pump head or Control valve to Find.`}); }
+  });
+  if(bad.length){ bad.forEach(b=>add('e',b.u,b.m)); return out(false,'The fixed values do not match what can be solved. See Checks.'); }
+
+  // ---- 6. fluid properties (flow-weighted at Combiners)
+  function props(xq){
+    const fr={}, indeg={}; nodes.forEach(n=>indeg[n.id]=inL[n.id].length);
+    const q=nodes.filter(n=>!indeg[n.id]).map(n=>n.id), order=[];
+    while(q.length){ const id=q.shift(); order.push(id); outL[id].forEach(l=>{ if(--indeg[l.to]===0) q.push(l.to); }); }
+    const first=srcs[0].n.p, def={rho:+first.rho, mu:+first.mu, pv:+first.Pv||0};
+    order.forEach(id=>{ const n=byId[id];
+      if(n.type==='source'){ fr[id]={rho:+n.p.rho, mu:+n.p.mu, pv:+n.p.Pv||0}; return; }
+      let w=0, r=0, m=0, pv=0; inL[id].forEach(l=>{ const f=fr[l.from]; if(!f) return; const ref=linkRef(l); const qq=Math.max(1e-9, ref!=null&&xq?Math.abs(xq[ref]):1); w+=qq; r+=qq*f.rho; m+=qq*f.mu; pv=Math.max(pv,f.pv||0); });
+      fr[id]= w>0 ? {rho:r/w, mu:m/w, pv} : def; });
+    nodes.forEach(n=>{ if(!fr[n.id]) fr[n.id]=def; });
+    return fr;
+  }
+  let fr=props(null); els.forEach(e=>{ e.rho=fr[e.n.id].rho; e.mu=fr[e.n.id].mu; e.pv=fr[e.n.id].pv; });
+
+  // ---- 7. equations
+  const nEq=NE+NP+specs.length+splitEqs.length;
+  function F(x){
+    const r=new Array(nEq); let k=0;
+    for(let i=0;i<NE;i++){ const e=els[i]; r[k++] = x[e.a]-x[e.b]-elemDetail(e, x[iE+i], e.xf!=null?x[e.xf]:0).h; }
+    const m=new Array(NP).fill(0);
+    for(let i=0;i<NE;i++){ const e=els[i], q=x[iE+i]; m[e.b]+=q; m[e.a]-=q; }
+    srcs.forEach((s,i)=>m[s.pn]+=x[iS+i]); snks.forEach((s,i)=>m[s.pn]-=x[iW+i]);
+    for(let j=0;j<NP;j++) r[k++]=m[j];
+    for(const sp of specs) r[k++]=x[sp.i]-sp.v;
+    for(const se of splitEqs) r[k++]=se.f(x);
+    return r;
+  }
+  // starting point
+  const fixedQ=specs.filter(sp=>sp.i>=iS && sp.i<iF).map(sp=>Math.abs(sp.v)).filter(v=>v>0);
+  const q0 = fixedQ.length ? Math.max(...fixedQ) : 10;
+  const fixedP=specs.filter(sp=>sp.isP).map(sp=>sp.v);
+  const p0 = fixedP.length ? fixedP.reduce((a,b)=>a+b,0)/fixedP.length : 0;
+  let x=new Array(N).fill(0);
+  for(let i=0;i<NP;i++) x[i]=p0;
+  for(let i=iE;i<iF;i++) x[i]=q0;
+  finds.forEach(e=>x[e.xf]= e.n.type==='pump' ? 20 : e.n.type==='orifice' ? 20 : 50);
+  specs.forEach(sp=>x[sp.i]=sp.v);
+  const norm=r=>Math.sqrt(r.reduce((s,v)=>s+v*v,0)), maxa=r=>r.reduce((s,v)=>Math.max(s,Math.abs(v)),0);
+  let iters=0, ok=false, singular=false, r=F(x);
+  for(let pass=0; pass<6; pass++){
+    let nr=norm(r);
+    for(let it=0; it<100; it++){
+      if(maxa(r)<1e-7){ ok=true; break; }
+      iters++;
+      const J=Array.from({length:nEq},()=>new Array(N));
+      for(let j=0;j<N;j++){ const h=1e-6*Math.max(1,Math.abs(x[j])); const xj=x[j]; x[j]=xj+h; const rj=F(x); x[j]=xj; for(let i=0;i<nEq;i++) J[i][j]=(rj[i]-r[i])/h; }
+      const dx=linsolve(J, r.map(v=>-v));
+      if(!dx){ singular=true; break; }
+      let lam=1, xn, rn, nn;
+      for(let t=0;t<12;t++){ xn=x.map((v,i)=>v+lam*dx[i]); rn=F(xn); nn=norm(rn); if(isFinite(nn) && nn<nr) break; lam/=2; }
+      if(!isFinite(nn)){ break; }
+      x=xn; r=rn; nr=nn;
+      if(maxa(r)<1e-7){ ok=true; break; }
+    }
+    if(!ok || singular) break;
+    const fr2=props(x); let ch=0;
+    els.forEach(e=>{ const f=fr2[e.n.id]; ch=Math.max(ch, Math.abs(f.rho-e.rho)/e.rho, Math.abs(f.mu-e.mu)/e.mu); e.rho=f.rho; e.mu=f.mu; e.pv=f.pv; });
+    fr=fr2;
+    if(ch<1e-9) break;
+    ok=false; r=F(x);
+  }
+  if(singular){ add('e',null,'The equations cannot be solved as set up. A common cause is two fixed flows on the same line that disagree (for example a Source flow and a flow-control valve setpoint), flows that do not add up, or a Splitter outlet with no route to a Sink.'); return out(false,'Could not solve. See Checks.'); }
+  if(!ok){ add('e',null,`No solution found after ${iters} iterations. Check for fixed pressures that cannot be reached, or flows close to zero.`); return out(false,'Did not converge. See Checks.'); }
+
+  // ---- 8. results
+  const vmax=+set.vmax, vmin=+set.vmin;
+  els.forEach((e,i)=>{ const n=e.n, q=x[iE+i], d=elemDetail(e,q,e.xf!=null?x[e.xf]:0);
+    Object.assign(res[n.id], d, {Q:q, D:e.Din, Dout:e.Dout, rho:e.rho, mu:e.mu, Pin:x[e.a], Pout:x[e.b], dP:d.h, vePct: d.v>0 ? d.v/erosional(e.rho, +set.C||100)*100 : 0});
+    const rr=res[n.id];
+    if(d.chkShut) add('w',n.id,'The check valve in this segment is shut: flow would otherwise run backwards here.');
+    else if(q < -1e-6) add('w',n.id,`Flow runs backwards here (${fq('Q',q,2)}). A pump in a parallel branch can push flow back this way; add a check valve to this segment to stop it. Otherwise check the fixed pressures and flows.`);
+    if(n.type==='segment'){
+      if(d.Re>RE_LAM && d.Re<4000) add('w',n.id,`Re = ${Math.round(d.Re)}: transition zone. The friction factor is uncertain here; the app uses the turbulent (Colebrook) value, which is the higher one.`);
+      if(vmax>0 && d.v>vmax) add('w',n.id,`Velocity ${fq('v',d.v,2)} is above the ${fq('v',vmax,2)} limit.`);
+      if(vmin>0 && d.v>0 && d.v<vmin) add('w',n.id,`Velocity ${fq('v',d.v,2)} is below the ${fq('v',vmin,2)} minimum.`);
+    }
+    if(n.type==='orifice' && n.p.spec==='find'){
+      const need=d.dPfit, h1=hyd(Math.abs(q),e.Din,e.rho,e.mu), vh=h1.vh/1000, t=+n.p.t||0, Kt = vh>0 ? need/vh : 0;
+      const Kb=b=>orificeK(b,h1.Re,e.Din,t);
+      if(need<=0) add('e',n.id,`The orifice would have to add ${fq('dP',-need,1)}. A plate cannot; lower the required pressure or flow.`);
+      else if(Kt>Kb(0.02)) add('e',n.id,`This needs ${fq('dP',need,1)}, more than one plate can take (bore under 2% of the pipe ID). Use a multi-stage orifice or a valve.`);
+      else if(Kt<Kb(0.995)) add('w',n.id,`Only ${fq('dP',need,2)} is needed. That is less than a plate with a bore of 99.5% of the pipe ID gives, so no orifice is needed.`);
+      else { let lo=0.02, hi=0.995; for(let i=0;i<80;i++){ const mid=(lo+hi)/2; if(Kb(mid)>Kt) lo=mid; else hi=mid; } const b=(lo+hi)/2; res[n.id].beta=b; res[n.id].bore=b*e.Din; res[n.id].K=Kt; }
+    }
+    const Patm = isFinite(+set.Patm)&&+set.Patm>0 ? +set.Patm : 101.325, pv=e.pv||0;
+    if(n.type==='cv'){ const p=n.p, mode=p.cvMode||'fixed', Qa=Math.abs(q), SG=e.rho/RHO_W15, dP=d.dPoth, Cvr=+p.Cvr;
+      let unreachable=false;
+      if(mode!=='fixed'){
+        if(dP<=0){ unreachable=true; add('e',n.id, mode==='find' ? `The valve would have to add ${fq('dP',-dP,1)}. A valve cannot do that; raise the pump head or lower the required pressure.`
+            : `The setpoint cannot be reached: the valve would have to add ${fq('dP',-dP,1)}.`); }
+        else rr.Cv = CV_K*Qa*Math.sqrt(SG/dP); }
+      if(Cvr>0 && rr.Cv>0){ rr.cvPct = rr.Cv/Cvr*100;
+        if(mode!=='fixed' && rr.cvPct>100){ unreachable=true; add('e',n.id,`Needs Cv ${rr.Cv.toFixed(1)}, more than the rated Cv ${Cvr}. The setpoint cannot be held.`); }
+        else if(rr.cvPct>90) add('w',n.id,`Valve is at ${rr.cvPct.toFixed(0)}% of rated Cv: little margin left for control.`);
+        else if(rr.cvPct<10) add('w',n.id,`Valve is at ${rr.cvPct.toFixed(0)}% of rated Cv: control will be poor this far closed.`); }
+      if(unreachable && mode!=='fixed'){
+        if(Cvr>0 && !set._wo){ const m2=JSON.parse(JSON.stringify(model)); const vn=m2.nodes.find(z=>z.id===n.id); vn.p.cvMode='fixed'; vn.p.Cv=Cvr;
+          const r2=solve(m2, Object.assign({},set,{_wo:true}));
+          if(r2.ok){ const w=r2.res[n.id]; rr.wideOpen={Q:w.Q, Pin:w.Pin, Pout:w.Pout}; add('w',n.id,`Wide open at rated Cv ${Cvr}: ${fq('Q',w.Q,2)} through the valve, ${fq('Pg',w.Pin,1)} in, ${fq('Pg',w.Pout,1)} out.`); }
+          else add('w',n.id,'The wide-open case could not be solved either. Check the rest of the diagram.'); }
+        else if(!(Cvr>0)) add('w',n.id,'Enter the rated Cv to see what the line does with the valve wide open.'); }
+      if(Qa>0 && dP>0 && rr.Pin!=null){ const FL=+p.FL>0?+p.FL:0.9, P1=rr.Pin+Patm, FF=0.96-0.28*Math.sqrt(Math.max(0,pv)/PC_WATER);
+        rr.dPchoked = FL*FL*(P1-FF*pv); rr.FL=FL;
+        if(rr.Pout+Patm < pv) add('e',n.id,`Flashing: outlet pressure ${fq('Pa',rr.Pout+Patm,1)} is below the vapour pressure ${fq('Pa',pv,2)}.`);
+        else if(dP >= rr.dPchoked) add('e',n.id,`Choked flow (IEC 60534): ΔP ${fq('dP',dP,1)} is at or above the choked limit ${fq('dP',rr.dPchoked,1)} (F_L ${FL}). The valve will cavitate and the Cv equation no longer holds.`); }
+    }
+    if(n.type==='pump'){ const p=n.p, H=d.H, Qa=Math.abs(q);
+      if(p.hMode==='find' && H<0) add('w',n.id,`Head comes out negative (${fq('H',H,2)}): this line needs no pump.`);
+      rr.Hop=H; rr.dPdiff=-d.dPpump;
+      rr.Phyd = Qa/3600*rr.dPdiff; // kW
+      const eta=+p.eff>0 ? +p.eff/100 : null;
+      if(eta){ rr.Pshaft=rr.Phyd/eta; const mg = rr.Pshaft<=22?1.25:rr.Pshaft<=55?1.15:1.10; rr.motorEach = IEC_MOTORS.find(m=>m>=rr.Pshaft*mg) || null; rr.motorMargin=mg; }
+      const s=(+p.speed||100)/100, Qr=+p.Qr;
+      if(Qr>0){ const qp = p.hMode==='curve' ? Qa/s : Qa; rr.pctRated = qp/Qr*100;
+        if(rr.pctRated<70 || rr.pctRated>120) add('w',n.id,`The pump runs at ${rr.pctRated.toFixed(0)}% of rated flow, outside 70–120%.`); }
+      if(p.hMode==='curve'){ const qp=q/s; if(qp>+p.Qx) add('w',n.id,`The pump is past the runout flow on its curve (${fq('Q',qp,1)} > ${fq('Q',+p.Qx,1)} at rated speed); the curve is being extrapolated.`);
+        if(H<=0) add('e',n.id,'The pump curve gives no head at this flow. The pump is past the end of its curve.'); }
+      const vh = d.v>0 ? d.v*d.v/(2*G) : 0;
+      rr.NPSHa = (rr.Pin + Patm - pv)*1000/(e.rho*G) + vh;
+      const nr=parseFloat(p.NPSHr);
+      if(isFinite(nr) && nr>0){ rr.NPSHmargin = rr.NPSHa-nr;
+        if(rr.NPSHmargin<0) add('e',n.id,`NPSH available ${fq('H',rr.NPSHa,2)} is below NPSH required ${fq('H',nr,2)}. The pump will cavitate.`);
+        else if(rr.NPSHmargin<1) add('w',n.id,`NPSH margin is only ${fq('H',rr.NPSHmargin,2)} (available ${fq('H',rr.NPSHa,2)}, required ${fq('H',nr,2)}).`); }
+    }
+    if(rr.Pout + Patm < pv) add('e',n.id,`Pressure falls to ${fq('Pa',rr.Pout+Patm,2)}, below the vapour pressure (${fq('Pa',pv,2)}). The liquid will flash here.`);
+    else if(rr.Pout < -90) add('e',n.id,`Pressure falls to ${fq('Pg',rr.Pout,1)}, close to full vacuum.`);
+    else if(rr.Pout < -0.01 && rr.Pin >= -0.01) add('w',n.id,`Pressure drops below atmospheric here (${fq('Pg',rr.Pout,1)}).`);
+  });
+  srcs.forEach((s,i)=>Object.assign(res[s.n.id],{Q:x[iS+i], P:x[s.pn], Pout:x[s.pn], rho:+s.n.p.rho}));
+  snks.forEach((s,i)=>{ const rr=Object.assign(res[s.n.id],{Q:x[iW+i], P:x[s.pn], Pin:x[s.pn], rho:fr[s.n.id].rho});
+    const pm=s.n.p.Pmin; if(s.n.p.pMode!=='fixed' && pm!=='' && pm!=null && isFinite(+pm)){ rr.margin=rr.P-(+pm); if(rr.margin<-1e-9) add('e',s.n.id,`Arrives at ${fq('Pg',rr.P,2)}, ${fq('dP',-rr.margin,2)} short of the ${fq('Pg',+pm,1)} minimum.`); }
+    if(x[iW+i] < -1e-6) add('w',s.n.id,`Flow comes out of this Sink (${fq('Q',x[iW+i],2)}). Check the fixed pressures.`); });
+  const lres={};
+  links.forEach(l=>{ const ref=linkRef(l); lres[l.id]={Q: ref!=null?x[ref]:null, P:x[pn(l)], D:null}; });
+  links.forEach(l=>{ const f=byId[l.from]; if(ELEM.has(f.type)) lres[l.id].D=els[eIdx[f.id]].Dout; else { const t=byId[l.to]; if(ELEM.has(t.type)) lres[l.id].D=els[eIdx[t.id]].Din; } });
+  nodes.filter(n=>MERGE.has(n.type)).forEach(n=>{ const qin=inL[n.id].reduce((s,l)=>s+(lres[l.id].Q||0),0); Object.assign(res[n.id],{Q:qin, P:x[unitPn(n)], Pin:x[unitPn(n)], Pout:x[unitPn(n)]});
+    if(n.type==='combiner') res[n.id].inlets=inL[n.id].map(l=>({from:l.from, Q:lres[l.id].Q}));
+    if(n.type==='splitter'){ res[n.id].outlets=outL[n.id].map(l=>({to:l.to, link:l.id, Q:lres[l.id].Q, frac: qin? (lres[l.id].Q||0)/qin : 0}));
+      const c=n._chk; if(c && !c.pct && !c.blanks.length){ const last=c.given[c.given.length-1]; const got=x[c.refs[last.i]]; if(Math.abs(got-last.v)>1e-3) add('e',n.id,`Outlet flows must add up to the inlet flow. ${name(c.outs[last.i].to)} gets ${fq('Q',got,2)}, not ${fq('Q',+last.v,2)}. Leave one outlet blank to take the rest.`); } }
+    delete n._chk; });
+  // elevations along the network
+  const zN=new Array(NP).fill(null), zSrc={};
+  const queue=[]; srcs.forEach(s=>{ if(zN[s.pn]==null){ zN[s.pn]=+s.n.p.z||0; queue.push(s.pn); } else if(Math.abs(zN[s.pn]-(+s.n.p.z||0))>0.01) add('w',s.n.id,'This Source elevation does not match the elevation reached through the pipework.'); });
+  while(queue.length){ const a=queue.shift(); els.forEach(e=>{ const dz = e.n.type==='segment' ? (+e.n.p.dz||0) : 0;
+      if(e.a===a){ const zb=zN[a]+dz; if(zN[e.b]==null){ zN[e.b]=zb; queue.push(e.b); } else if(Math.abs(zN[e.b]-zb)>0.01) add('w',e.n.id,`Elevations do not agree: this route reaches ${fq('L',zb,2)}, another reaches ${fq('L',zN[e.b],2)}.`); }
+      else if(e.b===a && zN[e.a]==null){ zN[e.a]=zN[a]-dz; queue.push(e.a); } }); }
+  els.forEach(e=>{ res[e.n.id].zout=zN[e.b]; }); snks.forEach(s=>res[s.n.id].zout=zN[s.pn]); srcs.forEach(s=>res[s.n.id].zout=zN[s.pn]);
+  // solved values
+  const solved=[];
+  srcs.forEach(s=>{ const p=s.n.p, rr=res[s.n.id]; if(p.qMode==='solved') solved.push({id:s.n.id, f:'Q', what:'Flow', v:rr.Q, u:'m³/h'}); if(p.pMode==='solved') solved.push({id:s.n.id, f:'P', what:'Pressure', v:rr.P, u:'kPa g'}); });
+  snks.forEach(s=>{ const p=s.n.p, rr=res[s.n.id]; if(p.qMode!=='fixed') solved.push({id:s.n.id, f:'Q', what:'Flow', v:rr.Q, u:'m³/h'}); if(p.pMode!=='fixed') solved.push({id:s.n.id, f:'P', what:'Arrival pressure', v:rr.P, u:'kPa g'}); });
+  nodes.filter(n=>n.type==='splitter' && n.p.bal==='balanced').forEach(n=>res[n.id].outlets.forEach(o=>solved.push({id:n.id, f:'split', link:o.link, what:`Flow to ${name(o.to)}`, v:o.Q, u:'m³/h'})));
+  els.forEach(e=>{ if(e.n.type==='pump' && e.n.p.hMode==='curve'){ const rr=res[e.n.id]; solved.push({id:e.n.id, f:'info', what:'Operating flow (curve)', v:rr.Q, u:'m³/h'}); solved.push({id:e.n.id, f:'info', what:'Operating head (curve)', v:rr.H, u:'m'}); } });
+  finds.forEach(e=>{ const rr=res[e.n.id]; if(e.n.type==='pump') solved.push({id:e.n.id, f:'H', what:'Head', v:rr.H, u:'m'});
+    else if(e.n.type==='orifice'){ if(rr.bore!=null) solved.push({id:e.n.id, f:'bore', what:'Bore diameter', v:rr.bore, u:'mm'}); solved.push({id:e.n.id, f:'dPor', what:'Orifice ΔP', v:rr.dPfit, u:'kPa'}); }
+    else { solved.push({id:e.n.id, f:'Cv', what:'Cv', v:rr.Cv, u:'US'}); solved.push({id:e.n.id, f:'dPcv', what:'Valve ΔP', v:rr.dPoth, u:'kPa'}); } });
+  // lines: each route from a Source to a Sink
+  const paths=[];
+  srcs.forEach(s=>{ const walk=(id,trail)=>{ if(paths.length>300) return; const t=[...trail,id]; const o=outL[id]; if(!o.length){ paths.push(t); return; } o.forEach(l=>{ if(!t.includes(l.to)) walk(l.to,t); }); }; walk(s.n.id,[]); });
+  const lines=paths.map(path=>{
+    const rs=path.filter(id=>ELEM.has(byId[id].type)).map(id=>res[id]);
+    const sum=k=>rs.reduce((a,r)=>a+(r[k]||0),0);
+    const segs=path.filter(id=>byId[id].type==='segment').map(id=>res[id]);
+    const first=res[path[0]], last=res[path[path.length-1]];
+    const dPdyn=sum('dPfric')+sum('dPfit');
+    const total=dPdyn+sum('dPstat')+sum('dPoth')+sum('dPpump');
+    return {path, from:path[0], to:path[path.length-1], Q:last.Q, L:segs.reduce((a,r)=>a+(r.Leff||0),0),
+      dPstat:sum('dPstat'), dPdyn, dPoth:sum('dPoth'), dPpump:sum('dPpump'), total, head: total*1000/((last.rho||first.rho||998.2)*G),
+      Pstart:first.P, Pend:last.P!=null?last.P:last.Pout, vmax:Math.max(0,...segs.map(r=>r.v||0)), kpa100:Math.max(0,...segs.map(r=>r.kpa100||0))};
+  });
+  const order=[]; { const seen=new Set(); const st=srcs.map(s=>s.n.id); while(st.length){ const id=st.shift(); if(seen.has(id)) continue; seen.add(id); order.push(id); outL[id].forEach(l=>st.push(l.to)); } nodes.forEach(n=>{ if(!seen.has(n.id)) order.push(n.id); }); }
+  const resid=maxa(F(x));
+  return out(true, `Solved in ${iters} iteration${iters===1?'':'s'}`, {lres, lines, solved, iters, order, resid});
+}
+/*ENGINE-END*/
+
+/* ---------- data ---------- */
+const STEEL = {"10":{"350":342.9,"400":393.7,"450":444.5,"500":495.3,"550":546.3,"600":596.9},"10S":{"15":17.08,"20":22.48,"25":27.86,"32":36.66,"40":42.76,"50":54.76,"65":66.9,"80":82.8,"90":95.5,"100":108.2,"125":134.5,"150":161.5,"200":211.58,"250":264.72,"300":314.76,"350":346.04,"400":396.84,"450":447.64,"500":496.92,"600":596.9},"40":{"15":15.76,"20":20.96,"25":26.64,"32":35.08,"40":40.94,"50":52.48,"65":62.68,"80":77.92,"90":90.12,"100":102.26,"125":128.2,"150":154.08,"200":202.74,"250":254.56,"300":303.28,"350":333.34,"400":381,"450":428.66,"500":477.82,"600":574.64},"40S":{"15":15.76,"20":20.96,"25":26.64,"32":35.08,"40":40.94,"50":52.48,"65":62.68,"80":77.92,"90":90.12,"100":102.26,"125":128.2,"150":154.08,"200":202.74,"250":254.56,"300":304.86},"80":{"15":13.84,"20":18.88,"25":24.3,"32":32.5,"40":38.14,"50":49.22,"65":58.98,"80":73.66,"90":85.44,"100":97.18,"125":122.24,"150":146.36,"200":193.7,"250":242.92,"300":288.94,"350":317.5,"400":363.52,"450":409.54,"500":455.62,"550":501.84,"600":547.68},"80S":{"15":13.84,"20":18.88,"25":24.3,"32":32.5,"40":38.14,"50":49.22,"65":58.98,"80":73.66,"100":97.18,"125":122.26,"150":146.36,"200":193.7,"250":247.7,"300":298.5},"160":{"15":11.74,"20":15.58,"25":20.7,"32":29.5,"40":34.02,"50":42.82,"65":53.94,"80":66.64,"100":87.32,"125":109.54,"150":131.78,"200":173.08,"250":215.94,"300":257.26,"350":284.18,"400":325.42,"450":366.72,"500":407.98,"550":451.04,"600":490.52},"STD":{"15":15.76,"20":20.96,"25":26.64,"32":35.08,"40":40.94,"50":52.48,"65":62.68,"80":77.92,"90":90.12,"100":102.26,"125":128.2,"150":154.08,"200":202.74,"250":254.56,"300":304.84,"350":336.54,"400":387.34,"450":438.14,"500":488.94,"550":539.94,"600":590.54},"XS":{"15":13.84,"20":18.88,"25":24.3,"32":32.5,"40":38.14,"50":49.22,"65":58.98,"80":73.66,"90":85.44,"100":97.18,"125":122.24,"150":146.36,"200":193.7,"250":247.7,"300":298.5,"350":330.2,"400":381,"450":431.8,"500":482.6,"550":533.6,"600":584.2},"XXS":{"15":6.36,"20":11.06,"25":15.22,"32":22.8,"40":28,"50":38.16,"65":44.96,"80":58.42,"100":80.06,"125":103.2,"150":124.4,"200":174.64,"250":222.3,"300":273.1}};
+const PE_OD=[20,25,32,40,50,63,75,90,110,125,140,160,180,200,225,250,280,315,355,400,450,500,560,630,710,800];
+const PE_SDR=[6,7.4,9,11,13.6,17,21,26,33,41];
+const FLUIDS={ w15:{n:'Water 15 °C',rho:999.1,mu:1.138,T:15,Pv:1.705}, w20:{n:'Water 20 °C',rho:998.2,mu:1.002,T:20,Pv:2.339}, w25:{n:'Water 25 °C',rho:997.0,mu:0.890,T:25,Pv:3.169}, w40:{n:'Water 40 °C',rho:992.2,mu:0.653,T:40,Pv:7.385}, w60:{n:'Water 60 °C',rho:983.2,mu:0.467,T:60,Pv:19.946}, custom:{n:'Custom'} };
+const ROUGH=[[0.0015,'PVC / smooth PE'],[0.007,'PE / HDPE'],[0.015,'PE, conservative'],[0.045,'Commercial steel'],[0.15,'Galvanised / aged steel'],[0.26,'Cast iron']];
+const TYPES = {
+  source:{label:'Source', sub:'Flow in', pre:'Source'},
+  sink:{label:'Sink', sub:'Flow out', pre:'Sink'},
+  segment:{label:'Pipe segment', sub:'Pipe run with its fittings', pre:'Segment'},
+  splitter:{label:'Splitter', sub:'Divides flow', pre:'Splitter'},
+  combiner:{label:'Combiner', sub:'Joins flows', pre:'Combiner'},
+  reducer:{label:'Reducer / expander', sub:'Diameter change', pre:'Reducer'},
+  pump:{label:'Pump', sub:'Adds head', pre:'Pump'},
+  cv:{label:'Control valve', sub:'Cv', pre:'CV'},
+  orifice:{label:'Orifice plate', sub:'Thin, sharp-edged', pre:'Orifice'},
+  fixed:{label:'Fixed ΔP', sub:'Equipment / allowance', pre:'Fixed loss'},
+  userk:{label:'User K', sub:'Known K value', pre:'User K'},
+  fitting:{label:'Fitting', sub:'Hooper 2K', pre:'Fitting'},
+  junction:{label:'Junction', sub:'Split or join', pre:'Junction'},
+};
+const PALETTE = [
+  ['Ends',[['source','Source'],['sink','Sink']]],
+  ['Line',[['segment','Pipe segment'],['splitter','Splitter'],['combiner','Combiner'],['reducer','Reducer / expander']]],
+  ['Equipment',[['pump','Pump'],['cv','Control valve'],['orifice','Orifice plate'],['fixed','Fixed ΔP'],['userk','User K']]],
+];
+function defaults(type){
+  switch(type){
+    case 'source': return {qMode:'fixed', Q:30, pMode:'fixed', P:0, fluid:'w20', rho:998.2, mu:1.002, T:20, Pv:2.339, z:0};
+    case 'sink': return {qMode:'solved', Q:'', pMode:'solved', P:'', Pmin:''};
+    case 'segment': return {L:100, allow:0, D:96.8, eps:0.015, dz:0, entr:'none', exit:false, fits:{ell90_lr:2}};
+    case 'splitter': return {bal:'fixed', mode:'pct'};
+    case 'combiner': return {};
+    case 'reducer': return {Dmode:'auto', D1:'', D2:80, type:'conc', angle:30};
+    case 'pump': return {hMode:'fixed', H:30, H0:'', Qr:'', Hr:'', Qx:'', Hx:'', speed:100, eff:'', NPSHr:''};
+    case 'cv': return {cvMode:'fixed', Cv:50, Qset:'', Pset:'', Cvr:'', FL:0.9};
+    case 'orifice': return {spec:'bore', d:50, beta:0.7, t:''};
+    case 'fixed': return {dP:10};
+    case 'userk': return {K:1};
+    case 'fitting': return {kind:'ell90_lr', n:1};
+    default: return {};
+  }
+}
+// values that can differ between cases; geometry is shared
+const CASEF={source:['qMode','Q','pMode','P','fluid','rho','mu','T','Pv'], sink:['qMode','Q','pMode','P','Pmin'], splitter:['bal','mode'], pump:['hMode','H','speed'], cv:['cvMode','Cv','Qset','Pset'], fixed:['dP']};
+// P&ID-style symbols in a 36×26 box
+const SYM = {
+  source:'<circle cx="9" cy="13" r="7"/><path d="M16 13h18M29 8l5 5-5 5"/>',
+  sink:'<path d="M2 13h18M15 8l5 5-5 5"/><circle cx="27" cy="13" r="7"/><circle cx="27" cy="13" r="2.6" class="fill"/>',
+  segment:'<path d="M3 13h30" stroke-width="5"/><path d="M3 6v14M33 6v14" stroke-width="2"/>',
+  splitter:'<path d="M2 13h12M14 13L33 4M14 13l19 9"/><circle cx="14" cy="13" r="3" class="fill"/>',
+  combiner:'<path d="M3 4l19 9M3 22l19-9M22 13h12"/><circle cx="22" cy="13" r="3" class="fill"/>',
+  junction:'<circle cx="18" cy="13" r="4" class="fill"/><path d="M2 13h12M22 13l12-8M22 13l12 8"/>',
+  reducer:'<path d="M4 5l28 5v6L4 21z"/>',
+  fitting:'<path d="M2 20h10a8 8 0 0 0 8-8V2"/>',
+  cv:'<path d="M4 12l14 7-14 7zM32 12L18 19l14 7z"/><path d="M18 19V8"/><path d="M10 8a8 6 0 0 1 16 0z"/>',
+  orifice:'<path d="M2 13h12M22 13h12"/><path d="M15 3v8M15 15v8M21 3v8M21 15v8" stroke-width="2.2"/>',
+  pump:'<circle cx="16" cy="14" r="10"/><path d="M16 4h16v5"/><path d="M12 9l9 5-9 5z" class="fill"/>',
+  fixed:'<rect x="4" y="5" width="28" height="16" rx="2"/><text x="18" y="17" text-anchor="middle" font-size="9" stroke="none" class="fill">ΔP</text>',
+  userk:'<rect x="4" y="5" width="28" height="16" rx="2"/><text x="18" y="17" text-anchor="middle" font-size="10" stroke="none" class="fill">K</text>',
+};
+const NW=176, NH=70, NWM=224; // normal units, Splitter/Combiner
+const nodeW=n=>(n.type==='splitter'||n.type==='combiner')?NWM:NW;
+
+/* ---------- state ---------- */
+const LS='lineHydraulics.v3';
+let S, sel=null, R=null, undoStack=[], tab='lines', stale=false, CMP=null, CMPstale=false;
+let view={x:40,y:40,k:1};
+function uid(){ return Math.random().toString(36).slice(2,9); }
+function defaultSettings(){ return {vmax:3.0, vmin:0, C:100, Patm:101.325}; }
+function unitPreset(){ const cur=presetUnits('si'); Object.assign(cur, S.set.units||{}); return Object.keys(UPRESETS).find(k=>{ const p=presetUnits(k); return Object.keys(UNITS).every(q=>p[q]===cur[q]); })||''; }
+function blank(){ return {v:3, nodes:[], links:[], set:defaultSettings(), cases:[{id:uid(), name:'Case 1', vals:null}], ci:0, auto:true}; }
+function nextName(type){ const pre=TYPES[type].pre, used=new Set(S.nodes.map(n=>n.name)); let i=1; while(used.has(`${pre} ${i}`)) i++; return `${pre} ${i}`; }
+function captureCase(){ const vals={n:{},l:{}}; S.nodes.forEach(n=>{ const f=CASEF[n.type]; if(f){ vals.n[n.id]={}; f.forEach(k=>vals.n[n.id][k]=n.p[k]); } }); S.links.forEach(l=>{ if(l.split!=null) vals.l[l.id]=l.split; }); return vals; }
+function loadCase(vals){ if(!vals) return; S.nodes.forEach(n=>{ const v=vals.n[n.id]; if(v) Object.assign(n.p, JSON.parse(JSON.stringify(v))); });
+  S.links.forEach(l=>{ const f=nodeById(l.from); if(f&&f.type==='splitter'){ if(l.id in vals.l) l.split=vals.l[l.id]; else delete l.split; } }); }
+function syncCase(){ if(S.cases&&S.cases[S.ci]) S.cases[S.ci].vals=captureCase(); }
+function save(){ try{ syncCase(); localStorage.setItem(LS, JSON.stringify({S,view})); }catch(e){} }
+function loadLS(){ try{ const t=localStorage.getItem(LS); if(!t) return null; const o=JSON.parse(t); if(o&&o.S&&o.S.v===3&&Array.isArray(o.S.nodes)){ if(o.view) view=o.view; return o.S; } }catch(e){} return null; }
+function pushUndo(){ syncCase(); undoStack.push(JSON.stringify(S)); if(undoStack.length>80) undoStack.shift(); }
+function undo(){ if(!undoStack.length) return; S=JSON.parse(undoStack.pop()); if(sel && !findSel()) sel=null; buildCaseSel(); changed(true); }
+// convert a diagram saved by the earlier version
+function migrate(m){
+  if(m.v===3) return m;
+  const o={v:3, nodes:[], links:m.links||[], set:Object.assign(defaultSettings(), m.set||{}), cases:[{id:uid(),name:'Case 1',vals:null}], ci:0, auto:true};
+  (m.nodes||[]).forEach(n=>{ const p=n.p||{}; let t=n.type, q;
+    if(t==='pipe'){ t='segment'; q={L:p.L,allow:p.allow||0,D:p.D,eps:p.eps,dz:p.dz||0,entr:'none',exit:false,fits:{}}; }
+    else if(t==='source') q={qMode:'fixed',Q:p.Q,pMode:'fixed',P:p.P||0,fluid:p.fluid||'custom',rho:p.rho,mu:p.mu,z:p.z||0};
+    else if(t==='sink') q={qMode:'solved',Q:'',pMode:'solved',P:'',Pmin:p.Pset??''};
+    else if(t==='splitter') q={bal:'fixed', mode:p.mode||'pct'};
+    else q=Object.assign(defaults(t), p);
+    o.nodes.push({id:n.id,type:t,name:n.name,x:n.x,y:n.y,p:Object.assign(defaults(t),q)}); });
+  return o;
+}
+
+function normalize(m){
+  m.nodes.forEach(n=>{ const p=n.p||{};
+    if(n.type==='splitter'||n.type==='combiner'){ delete p.tee; delete p.teeType; delete p.run; }
+    if(n.type==='reducer' && p.type==null) p.type = (+p.angle===180||p.angle==null) ? 'sudden' : 'custom';
+    if(n.type==='orifice' && p.spec==null) p.spec='beta';
+    if(n.type==='pump') delete p.npar;
+    n.p=Object.assign(defaults(n.type), p); });
+  return m;
+}
+function example(){
+  const s=blank(); const N=(type,name,x,y,p)=>{ const n={id:uid(),type,name,x,y,p:Object.assign(defaults(type),p||{})}; s.nodes.push(n); return n; };
+  const L=(a,b,split)=>{ const l={id:uid(),from:a.id,to:b.id}; if(split!=null) l.split=split; s.links.push(l); return l; };
+  const fa=N('source','Tank A',0,40,{Q:25,P:20,z:100});
+  const sa=N('segment','Tank A outlet',200,40,{L:20,D:123.4,entr:'square',fits:{ell90_lr:2,vg_full:1,teer_flg:1}});
+  const fb=N('source','Tank B',0,260,{Q:15,pMode:'solved',P:20,z:100});
+  const sb=N('segment','Tank B outlet',200,260,{L:35,D:123.4,entr:'square',fits:{ell90_lr:3,vg_full:1,teeb_flg:1}});
+  const cm=N('combiner','Suction header',400,150);
+  const ss=N('segment','Pump suction',600,150,{L:6,D:123.4,fits:{ell90_lr:1}});
+  const pu=N('pump','Transfer pump',800,150,{hMode:'find',H:20,eff:72,NPSHr:3});
+  const rd=N('reducer','Pump reducer',1000,150,{D2:110.2,type:'conc'});
+  const sd=N('segment','Discharge header',1200,150,{L:150,allow:10,D:110.2,dz:4,fits:{chk_swing:1,vg_full:1,ell90_lr:3}});
+  const sp=N('splitter','Header split',1400,150,{bal:'fixed',mode:'pct'});
+  const s1=N('segment','Line to A',1600,40,{L:80,allow:10,D:110.2,dz:2,fits:{teer_flg:1,ell90_lr:4,vg_full:1}});
+  const cv=N('cv','Flow control A',1800,40,{cvMode:'find',Cv:20,Cvr:80,FL:0.9});
+  const kA=N('sink','Delivery A',2000,40,{pMode:'fixed',P:0});
+  const s2=N('segment','Line to B',1600,300,{L:60,allow:10,D:110.2,dz:6,exit:true,fits:{teeb_flg:1,ell90_lr:2,vbfly:1}});
+  const kB=N('sink','Delivery B',2000,260,{pMode:'fixed',P:0});
+  s.nodes.forEach(n=>{ n.x=Math.round(n.x*1.12/10)*10; if(n.x>=670) n.x+=50; if(n.x>=1850) n.x+=50; });
+  L(fa,sa);L(fb,sb);const lrun=L(sa,cm);L(sb,cm);L(cm,ss);L(ss,pu);L(pu,rd);L(rd,sd);L(sd,sp);
+  const lA=L(sp,s1,60);L(s1,cv);L(cv,kA);L(sp,s2);L(s2,kB);
+  s.cases[0].name='Design: size pump and valve';
+  const keep=S; S=s; s.cases[0].vals=captureCase();
+  const r=solve(s, s.set);
+  const H = r.ok ? Math.ceil(r.res[pu.id].H) : 20, Q = r.ok ? r.res[pu.id].Q : 40;
+  // operating case: pump on its curve, flow control holds line A, tank levels fixed, Run finds the rest
+  Object.assign(fa.p,{qMode:'solved',pMode:'fixed',P:20}); Object.assign(fb.p,{qMode:'solved',pMode:'fixed',P:20});
+  Object.assign(pu.p,{hMode:'curve',H0:+(1.3*H).toFixed(1),Qr:+Q.toFixed(1),Hr:H,Qx:+(1.5*Q).toFixed(1),Hx:+(0.55*H).toFixed(1),speed:100});
+  Object.assign(cv.p,{cvMode:'flow',Qset:24}); Object.assign(sp.p,{bal:'balanced'});
+  s.cases.push({id:uid(), name:'Operating: pump curve, FC on line A', vals:captureCase()});
+  loadCase(s.cases[0].vals); Object.assign(pu.p,{H0:+(1.3*H).toFixed(1),Qr:+Q.toFixed(1),Hr:H,Qx:+(1.5*Q).toFixed(1),Hx:+(0.55*H).toFixed(1)});
+  S=keep; return s;
+}
+
+/* ---------- units of measure: display only, the solver always works in SI ---------- */
+// each option: [id, label, factor (display = SI × factor + offset), offset]
+const UNITS={
+  Q:{n:'Flow', o:[['m3h','m³/h',1],['ls','L/s',1/3.6],['lmin','L/min',1000/60],['gpm','gpm',1000/3.785411784/60],['bpd','bbl/d',24/0.158987294928]]},
+  Pg:{n:'Pressure (gauge)', o:[['kpag','kPa g',1],['barg','bar g',0.01],['mpag','MPa g',0.001],['psig','psig',1/6.894757293168361],['kscg','kg/cm² g',1/98.0665]]},
+  Pa:{n:'Pressure (absolute)', o:[['kpaa','kPa a',1],['bara','bar a',0.01],['mpaa','MPa a',0.001],['psia','psia',1/6.894757293168361],['ksca','kg/cm² a',1/98.0665]]},
+  dP:{n:'Pressure drop', o:[['kpa','kPa',1],['bar','bar',0.01],['mpa','MPa',0.001],['psi','psi',1/6.894757293168361],['ksc','kg/cm²',1/98.0665]]},
+  L:{n:'Length, elevation', o:[['m','m',1],['ft','ft',1/0.3048]]},
+  H:{n:'Head, NPSH', o:[['m','m',1],['ft','ft',1/0.3048]]},
+  D:{n:'Pipe ID, roughness', o:[['mm','mm',1],['in','in',1/25.4]]},
+  v:{n:'Velocity', o:[['ms','m/s',1],['fts','ft/s',1/0.3048]]},
+  rho:{n:'Density', o:[['kgm3','kg/m³',1],['lbft3','lb/ft³',0.45359237**-1*0.3048**3]]},
+  mu:{n:'Viscosity', o:[['cp','cP',1],['mpas','mPa·s',1]]},
+  T:{n:'Temperature', o:[['c','°C',1,0],['f','°F',1.8,32]]},
+  P:{n:'Power', o:[['kw','kW',1],['hp','hp',1/0.745699872]]},
+};
+const UPRESETS={ si:['SI (kPa)',{}], bar:['Metric (bar)',{Pg:'barg',Pa:'bara',dP:'bar'}],
+  us:['US customary',{Q:'gpm',Pg:'psig',Pa:'psia',dP:'psi',L:'ft',H:'ft',D:'in',v:'fts',rho:'lbft3',T:'f',P:'hp'}] };
+function presetUnits(k){ const u={}; Object.keys(UNITS).forEach(q=>u[q]=UNITS[q].o[0][0]); return Object.assign(u, UPRESETS[k][1]); }
+function uo(q){ const U=UNITS[q], id=(S&&S.set&&S.set.units||{})[q]; return U.o.find(o=>o[0]===id)||U.o[0]; }
+function ufac(q){ return q==='grad' ? uo('dP')[2]/uo('L')[2] : uo(q)[2]; }
+function isQ(q){ return q==='grad' || !!UNITS[q]; }
+function ul(q){ return q==='grad' ? `${uo('dP')[1]}/100 ${uo('L')[1]}` : isQ(q) ? uo(q)[1] : (q||''); }
+function toU(q,v){ if(v===''||v==null||!isFinite(+v)) return v; if(q==='grad') return +v*ufac(q); const o=uo(q); return +v*o[2]+(o[3]||0); }
+function fromU(q,v){ if(q==='grad') return v/ufac(q); const o=uo(q); return (v-(o[3]||0))/o[2]; }
+// extra decimals so a converted value keeps the resolution it had in SI (bar, in, psi need more)
+function ud(q,d){ return Math.max(0, d+Math.max(0,Math.ceil(Math.log10(1/ufac(q))-1e-9))); }
+function fuv(q,v,d){ return fmt(toU(q,v), ud(q,d)); }          // number only
+function fu(q,v,d){ return `${fuv(q,v,d)} ${ul(q)}`; }           // number and unit
+function fau(q,v){ return `${fa(toU(q,v))} ${ul(q)}`; }          // adaptive decimals, for block faces
+function inVal(q,v){ if(v===''||v==null) return ''; const x=+v; if(!isFinite(x)||!isQ(q)) return v; if(ufac(q)===1 && !(uo(q)[3])) return v; return +toU(q,x).toPrecision(7); }
+UFMT=(k,v,d)=>fu(k,v,d);
+const UQ_OF={'m³/h':'Q','kPa g':'Pg','kPa a':'Pa','kPa':'dP','m':'H','mm':'D'};
+
+/* ---------- helpers ---------- */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// adaptive decimals for the block faces: 292 / 16.0 / 0.53
+function fa(x){ if(x==null||x===''||!isFinite(x)) return '–'; const a=Math.abs(x); return fmt(x, a>=100?0:a>=10?1:2); }
+function fmt(x,d=2){ if(x==null||x===''||!isFinite(x)) return '–'; return (Math.abs(x)<0.5*Math.pow(10,-d)?0:x).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d}); }
+function trunc(s,n){ s=String(s||''); return s.length>n? s.slice(0,n-1)+'…' : s; }
+function nodeById(id){ return S.nodes.find(n=>n.id===id); }
+function findSel(){ if(!sel) return null; return sel.kind==='node'? nodeById(sel.id) : S.links.find(l=>l.id===sel.id); }
+function nm(id){ if(!id) return 'Diagram'; const n=nodeById(id); return n?n.name:'?'; }
+function snap(v){ return Math.round(v/10)*10; }
+const isMulti=n=>n.type==='splitter'||n.type==='junction';
+const isJoin=n=>n.type==='combiner'||n.type==='junction';
+
+/* ---------- palette ---------- */
+function symSvg(key,scale=1){ return `<svg width="${36*scale}" height="${26*scale}" viewBox="0 0 36 26" aria-hidden="true"><g class="sym">${SYM[key]||''}</g></svg>`; }
+function buildPalette(){
+  const el=$('#palette'); let h='';
+  PALETTE.forEach(([grp,items],gi)=>{ h+=`<h2>${grp}</h2>`; items.forEach(([type,label],ii)=>{ h+=`<div class="pitem" tabindex="0" data-g="${gi}" data-i="${ii}">${symSvg(type,.75)}<span>${label}</span></div>`; }); });
+  h+=`<p class="hint">Drag a unit onto the drawing, or click it to add it after the selected unit. Fittings go inside a Pipe segment: select the segment and use Add fitting.</p>`;
+  el.innerHTML=h;
+  el.querySelectorAll('.pitem').forEach(it=>{ const [type,label]=PALETTE[+it.dataset.g][1][+it.dataset.i];
+    it.addEventListener('pointerdown',e=>startPaletteDrag(e,type,label));
+    it.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); addAfterSelected(type); }}); });
+}
+function startPaletteDrag(e,type,label){
+  e.preventDefault(); const sx=e.clientX, sy=e.clientY; let moved=false, ghost=null;
+  const mv=ev=>{ if(!moved && Math.hypot(ev.clientX-sx,ev.clientY-sy)>5){ moved=true; ghost=document.createElement('div'); ghost.className='ghost'; ghost.textContent=label; document.body.appendChild(ghost); }
+    if(ghost){ ghost.style.left=(ev.clientX+10)+'px'; ghost.style.top=(ev.clientY+8)+'px'; } };
+  const up=ev=>{ window.removeEventListener('pointermove',mv); window.removeEventListener('pointerup',up); if(ghost) ghost.remove();
+    if(!moved){ addAfterSelected(type); return; }
+    const r=svg.getBoundingClientRect();
+    if(ev.clientX>=r.left&&ev.clientX<=r.right&&ev.clientY>=r.top&&ev.clientY<=r.bottom){
+      const w=toWorld(ev.clientX,ev.clientY); pushUndo();
+      const n=newNode(type, snap(w.x-NW/2), snap(w.y-NH/2));
+      const hit=document.elementsFromPoint(ev.clientX,ev.clientY).find(x=>x.closest&&x.closest('.link'));
+      if(hit && type!=='source' && type!=='sink'){ const lid=hit.closest('.link').dataset.id, l=S.links.find(x=>x.id===lid); if(l){ S.links.push({id:uid(),from:n.id,to:l.to}); l.to=n.id; } }
+      sel={kind:'node',id:n.id}; changed(true);
+    } };
+  window.addEventListener('pointermove',mv); window.addEventListener('pointerup',up);
+}
+function newNode(type,x,y){ const n={id:uid(),type,name:nextName(type),x,y,p:defaults(type)}; S.nodes.push(n); return n; }
+function downstream(id){ const out=new Set(), st=[id]; while(st.length){ const t=st.pop(); if(out.has(t)) continue; out.add(t); S.links.filter(l=>l.from===t).forEach(l=>st.push(l.to)); } return out; }
+function freeSpot(x,y){ while(S.nodes.some(m=>Math.abs(m.x-x)<NW&&Math.abs(m.y-y)<NH)) y+=NH+30; return y; }
+function addAfterSelected(type){
+  pushUndo();
+  const s = sel&&sel.kind==='node' ? nodeById(sel.id) : null; let n;
+  if(s && s.type!=='sink' && type!=='source'){
+    const outs=S.links.filter(l=>l.from===s.id);
+    if(outs.length && !isMulti(s) && type==='sink'){ n=newNode(type, s.x+nodeW(s)+44, freeSpot(s.x+nodeW(s)+44, s.y+NH+30)); }
+    else if(outs.length && !isMulti(s)){
+      const nxt=nodeById(outs[0].to); downstream(nxt.id).forEach(id=>{ const m=nodeById(id); if(m) m.x+=(type==='splitter'||type==='combiner'?NWM:NW)+44; });
+      n=newNode(type, s.x+nodeW(s)+44, s.y); outs[0].from=n.id; S.links.push({id:uid(),from:s.id,to:n.id});
+    } else { n=newNode(type, s.x+nodeW(s)+44, freeSpot(s.x+nodeW(s)+44, s.y)); S.links.push({id:uid(),from:s.id,to:n.id}); }
+  } else {
+    const r=svg.getBoundingClientRect(), c=toWorld(r.left+r.width/2,r.top+r.height/2);
+    const x=snap(c.x-NW/2); n=newNode(type, x, freeSpot(x, snap(c.y-NH/2)));
+  }
+  sel={kind:'node',id:n.id}; changed(true);
+}
+
+/* ---------- canvas ---------- */
+const svg=$('#cv');
+function toWorld(cx,cy){ const r=svg.getBoundingClientRect(); return {x:(cx-r.left-view.x)/view.k, y:(cy-r.top-view.y)/view.k}; }
+function applyView(){ $('#vp').setAttribute('transform',`translate(${view.x},${view.y}) scale(${view.k})`); $('#gridbg').setAttribute('transform',`translate(${view.x%(20*view.k)},${view.y%(20*view.k)}) scale(${view.k})`); }
+// Splitter: one dot per outlet plus a spare; Combiner: one dot per inlet plus a spare. Dots follow the height of the unit at the other end.
+let LAY={};
+function portLayout(n){
+  const legs = n.type==='splitter' ? S.links.filter(l=>l.from===n.id).map(l=>({l,y:(nodeById(l.to)||{y:0}).y})) : n.type==='combiner' ? S.links.filter(l=>l.to===n.id).map(l=>({l,y:(nodeById(l.from)||{y:0}).y})) : null;
+  if(!legs) return {H:NH, mid:NH/2};
+  legs.sort((a,b)=>a.y-b.y); const k=legs.length+1, H=46+k*22+6, ys=i=>46+i*22+11;
+  const map={}; legs.forEach((o,i)=>map[o.l.id]=ys(i));
+  const rows=legs.map((o,i)=>({l:o.l, y:ys(i)}));
+  return n.type==='splitter' ? {H, mid:Math.round(H/2), out:map, spareOut:ys(k-1), rows} : {H, mid:Math.round(H/2), in:map, spareIn:ys(k-1), rows};
+}
+const lay=n=>LAY[n.id]||(LAY[n.id]=portLayout(n));
+const outY=(n,l)=>{ const L=lay(n); return L.out&&l&&l.id in L.out ? L.out[l.id] : L.mid; };
+const inY=(n,l)=>{ const L=lay(n); return L.in&&l&&l.id in L.in ? L.in[l.id] : L.mid; };
+function linkPath(a,b,l){ const x1=a.x+nodeW(a), y1=a.y+outY(a,l), x2=b.x, y2=b.y+inY(b,l); const dx=Math.max(40,Math.abs(x2-x1)/2); return `M${x1} ${y1}C${x1+dx} ${y1},${x2-dx} ${y2},${x2-2} ${y2}`; }
+function nodeResText(n,r){
+  if(!R||!R.ok||!r||r.Q==null) return '';
+  switch(n.type){
+    case 'source': case 'sink': return `${fau('Q',r.Q)} · ${fau('Pg',r.P)}`;
+    case 'segment': return r.chkShut ? 'check valve shut · no flow' : `ΔP ${fau('dP',r.dP)} · ${fau('v',r.v)}`;
+    case 'pump': return `${fau('Q',r.Q)} · H ${fau('H',r.H)}`;
+    case 'cv': return `Cv ${fa(r.Cv)} · ΔP ${fau('dP',r.dPoth)}`;
+    case 'splitter': case 'combiner': case 'junction': return `${fau('Q',r.Q)} · ${fau('Pg',r.P)}`;
+    default: return `ΔP ${fau('dP',r.dP)}`;
+  }
+}
+function subText(n){
+  const p=n.p;
+  switch(n.type){
+    case 'segment': { const nf=Object.values(p.fits||{}).reduce((a,c)=>a+(+c>0?+c:0),0); return `${fu('L',+p.L,0)} · ID ${fu('D',+p.D,1)}`; }
+    case 'splitter': { const no=S.links.filter(l=>l.from===n.id).length; return `${no} outlet${no===1?'':'s'} · ${p.bal==='balanced'?'balanced':(p.mode==='flow'?'by flow':'by %')}`; }
+    case 'combiner': { const ni=S.links.filter(l=>l.to===n.id).length; return `${ni} inlet${ni===1?'':'s'}`; }
+    case 'cv': return p.cvMode==='flow' ? `FC ${fu('Q',parseFloat(p.Qset),1)}` : p.cvMode==='pdown' ? `PC out ${fu('Pg',parseFloat(p.Pset),1)}` : p.cvMode==='pup' ? `BP in ${fu('Pg',parseFloat(p.Pset),1)}` : p.cvMode==='find' ? 'Cv: size to match' : `Cv ${fmt(+p.Cv,1)}`;
+    case 'orifice': return p.spec==='find' ? 'Bore: find' : p.spec==='bore' ? `Bore ${fu('D',+p.d,1)}` : `β ${fmt(+p.beta,3)}`;
+    case 'reducer': { const r=R&&R.ok&&R.res[n.id]; const d1 = p.Dmode==='override' ? +p.D1 : (r?r.D:null); const kind = d1 ? (+p.D2<d1?'Reducer':+p.D2>d1?'Expander':'Same size') : 'Reducer';
+      return d1 ? `${kind} ${fuv('D',d1,1)}→${fuv('D',+p.D2,1)}` : `${kind} to ${fu('D',+p.D2,1)}`; }
+    case 'pump': return p.hMode==='find' ? 'Head: find' : p.hMode==='curve' ? `Curve · ${fmt(+p.speed||100,0)}% speed` : `Head ${fu('H',+p.H,1)}`;
+    case 'fixed': return fu('dP',+p.dP,1);
+    case 'userk': return `K ${fmt(+p.K,2)}`;
+    case 'source': return `EL ${fu('L',+p.z,2)}`;
+    case 'sink': return p.pMode==='fixed' ? `P fixed ${fuv('Pg',+p.P,1)}` : (p.Pmin!==''&&p.Pmin!=null ? `min ${fu('Pg',+p.Pmin,1)}` : 'Open');
+    default: return TYPES[n.type].sub;
+  }
+}
+// small tags: outlined = you fixed it, filled = Run solves it
+function tags(n){
+  const p=n.p, t=[];
+  if(n.type==='source'||n.type==='sink'){ t.push(['Q', n.type==='sink' ? p.qMode==='fixed' : p.qMode!=='solved']); t.push(['P', n.type==='sink' ? p.pMode==='fixed' : p.pMode!=='solved']); }
+  if(n.type==='pump') t.push(['H', p.hMode==='fixed']);
+  if(n.type==='cv'){ const sp={flow:'FC',pdown:'PC',pup:'BP'}[p.cvMode]; if(sp) t.push([sp,true]); t.push(['Cv', !p.cvMode||p.cvMode==='fixed']); }
+  if(n.type==='splitter') t.push(['%', p.bal!=='balanced']);
+  if(n.type==='orifice' && p.spec==='find') t.push(['d', false]);
+  let x=nodeW(n)-8, h='';
+  t.slice().reverse().forEach(([lbl,fixed])=>{ const w=lbl.length>1?20:14; x-=w; h+=`<g class="tag ${fixed?'fx':'sv'}"><rect x="${x}" y="7" width="${w}" height="13" rx="3"/><text x="${x+w/2}" y="17" text-anchor="middle">${lbl}</text></g>`; x-=3; });
+  return {h, n:t.length, x0: t.length ? x+3 : nodeW(n)-8};
+}
+function render(){
+  const res=R&&R.ok?R.res:{}, lres=R&&R.ok?R.lres:{};
+  LAY={}; S.nodes.forEach(n=>LAY[n.id]=portLayout(n));
+  let lh='';
+  S.links.forEach(l=>{ const a=nodeById(l.from), b=nodeById(l.to); if(!a||!b) return;
+    const d=linkPath(a,b,l), lr=lres[l.id]; const mx=(a.x+nodeW(a)+b.x)/2, my=(a.y+outY(a,l)+b.y+inY(b,l))/2-6;
+    const ro = a.type==='splitter' && res[a.id] && res[a.id].outlets ? res[a.id].outlets.find(o=>o.link===l.id) : null;
+    // flow labels only where there is room; Splitter and Combiner rows already show their leg flows
+    const gap = b.x-(a.x+nodeW(a)), merged = a.type==='splitter'||b.type==='combiner';
+    const lbl = lr&&lr.Q!=null && !merged && gap>=90 ? fau('Q',lr.Q) : '';
+    lh+=`<g class="link${sel&&sel.kind==='link'&&sel.id===l.id?' sel':''}" data-id="${l.id}"><path class="hit" d="${d}"/><path class="vis" d="${d}" marker-end="url(#arrowhead)"/>${lbl?`<text data-fit="hide" data-maxw="${gap-12}" x="${mx}" y="${my}" text-anchor="middle">${lbl}</text>`:''}</g>`; });
+  $('#links').innerHTML=lh;
+  let nh='';
+  S.nodes.forEach(n=>{
+    const r=res[n.id], msgs=R&&R.res&&R.res[n.id]?R.res[n.id].msgs:[];
+    const cls=msgs.length?(msgs.some(m=>m.sev==='e')?' e':' w'):'';
+    const s=sel&&sel.kind==='node'&&sel.id===n.id?' sel':'';
+    const tg=tags(n), L=lay(n), H=L.H;
+    let ports='';
+    if(n.type==='combiner'){ S.links.filter(l=>l.to===n.id).forEach(l=>ports+=`<circle class="port" data-port="in" data-link="${l.id}" cx="0" cy="${inY(n,l)}" r="6"/>`); ports+=`<circle class="port spare" data-port="in" cx="0" cy="${L.spareIn}" r="5"/>`; }
+    else if(n.type!=='source'){ const il=S.links.find(l=>l.to===n.id); ports+=`<circle class="port" data-port="in"${il?` data-link="${il.id}"`:''} cx="0" cy="${L.mid}" r="6"/>`; }
+    if(n.type==='splitter'){ S.links.filter(l=>l.from===n.id).forEach(l=>ports+=`<circle class="port" data-port="out" data-link="${l.id}" cx="${nodeW(n)}" cy="${outY(n,l)}" r="6"/>`); ports+=`<circle class="port spare" data-port="out" cx="${nodeW(n)}" cy="${L.spareOut}" r="5"/>`; }
+    else if(n.type!=='sink') ports+=`<circle class="port" data-port="out" cx="${nodeW(n)}" cy="${L.mid}" r="6"/>`;
+    const Wn=nodeW(n);
+    let inner;
+    if(L.rows){ // Splitter / Combiner: a header, then one row per leg lined up with its dot
+      const isS=n.type==='splitter', ok=R&&R.ok&&r&&r.Q!=null;
+      const head = ok ? `${fau('Q',r.Q)} · ${fau('Pg',r.P)}` : subText(n);
+      let rows='';
+      L.rows.forEach(({l,y})=>{ const other=nodeById(isS?l.to:l.from), lr=R&&R.ok?R.lres[l.id]:null;
+        let val, back=false;
+        if(lr&&lr.Q!=null){ const shut=Math.abs(lr.Q)<0.05; back = !shut && lr.Q<0; val = shut ? 'no flow' : fau('Q',lr.Q); }
+        else if(isS) val = n.p.bal==='balanced' ? 'balanced' : (l.split!=null&&l.split!=='' ? (n.p.mode==='flow' ? fau('Q',+l.split) : `${l.split}%`) : 'rest');
+        else val='';
+        rows+=`<text class="nrow" data-fit="rowname" x="${isS?12:14}" y="${y+4}">${isS?'→ ':'← '}${esc(other?other.name:'?')}</text><text class="nrowv${back?' back':''}" data-fit="shrink" data-maxw="${Math.round(Wn*0.5)}" x="${Wn-14}" y="${y+4}" text-anchor="end">${esc(val)}</text>`; });
+      rows+=`<text class="nspare" data-fit="trunc" data-maxw="${Wn-30}" x="${isS?Wn-14:14}" y="${(isS?L.spareOut:L.spareIn)+4}" text-anchor="${isS?'end':'start'}">${isS?'drag from the dot to add an outlet':'drop a line here to add an inlet'}</text>`;
+      inner=`<g class="sym" transform="translate(10,9)">${SYM[n.type]||''}</g>
+        <text class="nname" data-fit="trunc" data-maxw="${tg.x0-52-6}" x="52" y="19">${esc(n.name)}</text>${tg.h}
+        <text class="nsub" data-fit="shrink" data-maxw="${Wn-52-10}" x="52" y="36">${esc(head)}</text>
+        <line class="ndiv" x1="8" x2="${Wn-8}" y1="46" y2="46"/>${rows}`;
+    } else {
+      inner=`<g class="sym" transform="translate(10,9)">${SYM[n.type]||''}</g>
+      <text class="nname" data-fit="trunc" data-maxw="${tg.x0-52-6}" x="52" y="19">${esc(n.name)}</text>
+      ${tg.h}
+      <text class="nsub" data-fit="shrink" data-maxw="${Wn-52-10}" x="52" y="36">${esc(subText(n))}</text>
+      <text class="nres" data-fit="shrink" data-maxw="${Wn-20}" x="10" y="${H-12}">${esc(nodeResText(n,r))}</text>`;
+    }
+    nh+=`<g class="node${cls}${s}" data-id="${n.id}" transform="translate(${n.x},${n.y})">
+      <rect class="nbody" width="${Wn}" height="${H}" rx="7"/>
+      <rect class="stripe" x="0" y="8" width="3.5" height="${H-16}" rx="1.5"/>
+      ${inner}
+      ${ports}
+    </g>`;
+  });
+  $('#nodes').innerHTML=nh;
+  fitTexts();
+  const eh=$('#emptyhint'); if(eh) eh.style.display = S.nodes.length ? 'none' : 'block';
+  $('#cv').classList.toggle('stale', stale);
+  applyView();
+}
+// Make every label fit its space using the width the browser actually draws, whatever font has loaded.
+// Names are shortened with an ellipsis (full text on hover); numbers are made smaller first.
+function fitTexts(){
+  const W=el=>{ try{ return el.getComputedTextLength(); }catch(e){ return 0; } };
+  const tip=(el,full)=>{ const t=document.createElementNS('http://www.w3.org/2000/svg','title'); t.textContent=full; el.appendChild(t); };
+  const trunc2=(el,max)=>{ const full=el.textContent; if(W(el)<=max) return; let lo=0, hi=full.length;
+    while(lo<hi){ const mid=(lo+hi+1)>>1; el.textContent=full.slice(0,mid)+'…'; if(W(el)<=max) lo=mid; else hi=mid-1; }
+    el.textContent=full.slice(0,Math.max(1,lo))+'…'; tip(el,full); };
+  const shrink=(el,max)=>{ if(W(el)<=max) return; const base=parseFloat(getComputedStyle(el).fontSize)||11;
+    for(let f=base-0.5; f>=base*0.78; f-=0.5){ el.style.fontSize=f+'px'; if(W(el)<=max) return; } trunc2(el,max); };
+  document.querySelectorAll('#nodes text[data-fit], #links text[data-fit]').forEach(el=>{
+    const mode=el.dataset.fit, max=+el.dataset.maxw;
+    if(mode==='trunc') trunc2(el,max);
+    else if(mode==='shrink') shrink(el,max);
+    else if(mode==='hide'){ if(W(el)>max) el.remove(); } });
+  // row names take whatever room the value next to them leaves
+  document.querySelectorAll('#nodes text.nrow[data-fit="rowname"]').forEach(el=>{
+    const v=el.nextElementSibling, node=el.closest('.node'), Wn=+node.querySelector('.nbody').getAttribute('width');
+    const vw = v ? W(v) : 0, x=+el.getAttribute('x'); trunc2(el, (Wn-14-vw) - x - 10); });
+}
+let drag=null;
+svg.addEventListener('pointerdown',e=>{
+  if(e.button!==0 && e.pointerType==='mouse') return;
+  const port=e.target.closest('[data-port]'), ng=e.target.closest('.node'), lg=e.target.closest('.link');
+  if(port && port.dataset.port==='out'){ const n=nodeById(ng.dataset.id), l=port.dataset.link&&S.links.find(x=>x.id===port.dataset.link);
+    if(l && isMulti(n)){ pushUndo(); const y1=outY(n,l); S.links=S.links.filter(x=>x!==l); drag={mode:'connect',from:n,y1,reconnected:true}; changed(false); }
+    else drag={mode:'connect',from:n,y1:+port.getAttribute('cy')}; }
+  else if(port && port.dataset.port==='in'){ const l=port.dataset.link&&S.links.find(x=>x.id===port.dataset.link);
+    if(l){ pushUndo(); const f=nodeById(l.from), y1=outY(f,l); S.links=S.links.filter(x=>x!==l); drag={mode:'connect',from:f,y1,reconnected:true}; changed(false); } else drag={mode:'none'}; }
+  else if(ng){ const n=nodeById(ng.dataset.id), w=toWorld(e.clientX,e.clientY); sel={kind:'node',id:n.id}; renderPanel(); markSel(); drag={mode:'move',n,dx:w.x-n.x,dy:w.y-n.y,moved:false,sx:e.clientX,sy:e.clientY}; }
+  else if(lg){ sel={kind:'link',id:lg.dataset.id}; renderPanel(); markSel(); drag={mode:'none'}; }
+  else { drag={mode:'pan',sx:e.clientX,sy:e.clientY,vx:view.x,vy:view.y,moved:false}; svg.classList.add('panning'); }
+  svg.setPointerCapture(e.pointerId);
+});
+svg.addEventListener('pointermove',e=>{
+  if(!drag) return;
+  if(drag.mode==='move'){ if(!drag.moved && Math.hypot(e.clientX-drag.sx,e.clientY-drag.sy)<3) return; if(!drag.moved){ pushUndo(); drag.moved=true; }
+    const w=toWorld(e.clientX,e.clientY); drag.n.x=snap(w.x-drag.dx); drag.n.y=snap(w.y-drag.dy); render(); }
+  else if(drag.mode==='pan'){ view.x=drag.vx+(e.clientX-drag.sx); view.y=drag.vy+(e.clientY-drag.sy); drag.moved=true; applyView(); }
+  else if(drag.mode==='connect'){ const w=toWorld(e.clientX,e.clientY), a=drag.from, x1=a.x+nodeW(a), y1=a.y+(drag.y1!=null?drag.y1:lay(a).mid), dx=Math.max(40,Math.abs(w.x-x1)/2);
+    $('#tmp').setAttribute('d',`M${x1} ${y1}C${x1+dx} ${y1},${w.x-dx} ${w.y},${w.x} ${w.y}`);
+    document.querySelectorAll('.port.hot').forEach(p=>p.classList.remove('hot'));
+    const t=document.elementFromPoint(e.clientX,e.clientY), tn=t&&t.closest&&t.closest('.node'); if(tn){ const ip=tn.querySelector('.port.spare[data-port="in"]')||tn.querySelector('[data-port="in"]'); if(ip) ip.classList.add('hot'); } }
+});
+svg.addEventListener('pointerup',e=>{
+  if(!drag) return;
+  if(drag.mode==='connect'){ $('#tmp').setAttribute('d','');
+    const t=document.elementFromPoint(e.clientX,e.clientY), tn=t&&t.closest&&t.closest('.node');
+    if(tn){ const to=nodeById(tn.dataset.id);
+      if(to && to.id!==drag.from.id && to.type!=='source' && !S.links.some(l=>l.from===drag.from.id&&l.to===to.id)){
+        if(!drag.reconnected) pushUndo();
+        if(!isMulti(drag.from)) S.links=S.links.filter(l=>l.from!==drag.from.id);
+        if(!isJoin(to)) S.links=S.links.filter(l=>l.to!==to.id);
+        S.links.push({id:uid(),from:drag.from.id,to:to.id}); } }
+    changed(false); }
+  else if(drag.mode==='move'){ if(drag.moved){ render(); save(); } }
+  else if(drag.mode==='pan'){ svg.classList.remove('panning'); if(!drag.moved){ sel=null; renderPanel(); markSel(); } save(); }
+  drag=null;
+});
+svg.addEventListener('dblclick',e=>{ if(e.target.closest('.node')){ const f=$('#f-name'); if(f){ f.focus(); f.select(); } } });
+svg.addEventListener('wheel',e=>{ e.preventDefault(); const r=svg.getBoundingClientRect(), cx=e.clientX-r.left, cy=e.clientY-r.top;
+  const k=Math.min(2.5,Math.max(0.2,view.k*Math.exp(-e.deltaY*0.0015))); view.x=cx-(cx-view.x)*k/view.k; view.y=cy-(cy-view.y)*k/view.k; view.k=k; applyView(); save(); },{passive:false});
+function zoomBy(f){ const r=svg.getBoundingClientRect(), cx=r.width/2, cy=r.height/2; const k=Math.min(2.5,Math.max(0.2,view.k*f)); view.x=cx-(cx-view.x)*k/view.k; view.y=cy-(cy-view.y)*k/view.k; view.k=k; applyView(); save(); }
+function fit(){
+  if(!S.nodes.length){ view={x:40,y:40,k:1}; applyView(); return; }
+  const r=svg.getBoundingClientRect(), xs=S.nodes.map(n=>n.x), ys=S.nodes.map(n=>n.y);
+  const x0=Math.min(...xs)-30, x1=Math.max(...S.nodes.map(n=>n.x+nodeW(n)))+30, y0=Math.min(...ys)-30, y1=Math.max(...S.nodes.map(n=>n.y+lay(n).H))+40;
+  const k=Math.min(1.4,Math.max(0.5,Math.min(r.width/(x1-x0), r.height/(y1-y0)))); const wide=(x1-x0)*k>r.width;
+  view.k=k; view.x= wide ? 10-x0*k : (r.width-(x1-x0)*k)/2-x0*k; view.y=(r.height-(y1-y0)*k)/2-y0*k; applyView(); save();
+}
+function markSel(){
+  document.querySelectorAll('.node').forEach(g=>g.classList.toggle('sel',!!(sel&&sel.kind==='node'&&sel.id===g.dataset.id)));
+  document.querySelectorAll('.link').forEach(g=>g.classList.toggle('sel',!!(sel&&sel.kind==='link'&&sel.id===g.dataset.id)));
+}
+
+/* ---------- panel ---------- */
+const num=(key,label,unit)=>({key,label,unit,kind:'num'});
+const md=(mkey,key,label,unit,opts,solvedKey)=>({kind:'mode',mkey,key,label,unit,opts,solvedKey});
+const FS=[['fixed','Fixed'],['solved','Solved']];
+const FIELDS = {
+  source:[ md('qMode','Q','Flow rate','Q',FS,'Q'), md('pMode','P','Pressure','Pg',FS,'P'), {key:'fluid',label:'Fluid',kind:'fluid'}, num('rho','Density','rho'), num('mu','Viscosity','mu'), num('T','Temperature','T'), num('Pv','Vapour pressure','Pa'), num('z','Elevation','L') ],
+  sink:[ md('qMode','Q','Flow rate','Q',FS,'Q'), md('pMode','P','Pressure','Pg',FS,'P'), num('Pmin','Minimum pressure (check)','Pg') ],
+  segment:[ num('L','Length','L'), num('allow','Length allowance','%'), num('D','Inside diameter','D'), {key:'eps',label:'Roughness',unit:'D',kind:'num',list:'roughlist'}, num('dz','Elevation change (+ up)','L'),
+    {key:'entr',label:'Entrance at start',kind:'select',opts:[['none','None'],['square','Square-edged, K = 160/Re + 0.5'],['projecting','Projecting inward, K = 160/Re + 1.0']]},
+    {key:'exit',label:'Exit loss at end (K = 1)',kind:'check'} ],
+  splitter:[ {key:'bal',label:'Outlet flows',kind:'select',opts:[['fixed','Fixed shares'],['balanced','Balanced by Run']]} ],
+  combiner:[], junction:[],
+  reducer:[ md('Dmode','D1','Inlet ID','D',[['auto','From pipe'],['override','Enter']],'D'), num('D2','Outlet ID','D'),
+    {key:'type',label:'Type',kind:'select',opts:[['sudden','Sudden change'],['conc','Concentric fitting, about 30°'],['custom','Custom included angle']]},
+    Object.assign(num('angle','Included angle','deg'),{show:n=>n.p.type==='custom'}) ],
+  pump:[ {key:'hMode',label:'Head from',kind:'select',opts:[['fixed','Fixed value'],['find','Find (Run sizes it)'],['curve','Pump curve']]},
+    {kind:'sn',key:'H',label:'Differential head',unit:'H',solvedIf:n=>n.p.hMode!=='fixed',solvedKey:'H'},
+    {kind:'curve',show:n=>n.p.hMode==='curve'},
+    Object.assign(num('speed','Speed','%'),{show:n=>n.p.hMode==='curve'}),
+    Object.assign(num('Qr','Rated flow (for % of rated)','Q'),{show:n=>n.p.hMode!=='curve'}),
+    {kind:'sect',label:'Power and NPSH'},
+    num('eff','Pump efficiency','%'), num('NPSHr','NPSH required','H') ],
+  cv:[ {key:'cvMode',label:'Mode',kind:'select',opts:[['fixed','Fixed Cv'],['flow','Flow control (setpoint)'],['pdown','Pressure control, outlet (PRV)'],['pup','Back-pressure, inlet'],['find','Size to match the network']]},
+    Object.assign(num('Qset','Flow setpoint','Q'),{show:n=>n.p.cvMode==='flow'}),
+    Object.assign(num('Pset','Outlet pressure setpoint','Pg'),{show:n=>n.p.cvMode==='pdown'}),
+    Object.assign(num('Pset','Inlet pressure setpoint','Pg'),{show:n=>n.p.cvMode==='pup'}),
+    {kind:'sn',key:'Cv',label:'Valve Cv',unit:'US',solvedIf:n=>n.p.cvMode&&n.p.cvMode!=='fixed',solvedKey:'Cv'},
+    num('Cvr','Rated Cv (wide open)','US'), num('FL','Liquid recovery factor F_L','–') ],
+  orifice:[ {key:'spec',label:'Size by',kind:'select',opts:[['bore','Bore diameter'],['beta','β ratio (d/D)'],['find','Find bore (Run sizes it)']]},
+    Object.assign(num('d','Bore diameter','D'),{show:n=>n.p.spec==='bore'}), Object.assign(num('beta','β ratio d/D','–'),{show:n=>n.p.spec==='beta'}),
+    num('t','Plate thickness (blank = thin plate)','D') ],
+  fixed:[ num('dP','Pressure drop','dP') ],
+  userk:[ num('K','Resistance coefficient K','–') ],
+  fitting:[ num('n','Quantity','no.') ],
+};
+function isSolvedMode(n,f){ const m=n.p[f.mkey]; if(f.mkey==='hMode'||f.mkey==='cvMode') return m==='find'; if(f.mkey==='Dmode') return m!=='override'; if(n.type==='sink') return m!=='fixed'; return m==='solved'; }
+const CURVEQ={H0:'H',Hr:'H',Hx:'H',Qr:'Q',Qx:'Q'};
+function fieldQ(n,k){ if(n.type==='pump' && CURVEQ[k]) return CURVEQ[k]; const f=(FIELDS[n.type]||[]).find(x=>x.key===k); return f&&isQ(f.unit) ? f.unit : null; }
+function fieldHtml(n,f){
+  if(f.show && !f.show(n)) return '';
+  if(f.kind==='sect') return `<div class="sect">${f.label}</div>`;
+  if(f.kind==='curve'){ const c=k=>{ const v=n.p[k]; return v===''||v==null?'':esc(inVal(CURVEQ[k],v)); }, inp=(k,lab)=>`<input id="f-${k}" data-k="${k}" type="number" step="any" value="${c(k)}" aria-label="${lab}">`;
+    return `<div class="sect">Pump curve at 100% speed</div>
+      <table class="ctab"><thead><tr><th class="l"></th><th>Flow, ${ul('Q')}</th><th>Head, ${ul('H')}</th></tr></thead><tbody>
+      <tr><td class="l">Shutoff</td><td><input type="text" value="0" disabled aria-label="Shutoff flow"></td><td>${inp('H0','Shutoff head')}</td></tr>
+      <tr><td class="l">Rated</td><td>${inp('Qr','Rated flow')}</td><td>${inp('Hr','Rated head')}</td></tr>
+      <tr><td class="l">Runout</td><td>${inp('Qx','Runout flow')}</td><td>${inp('Hx','Runout head')}</td></tr></tbody></table>`; }
+  const v=n.p[f.key], id=`f-${f.key}`, q=isQ(f.unit)?f.unit:'', sfmt=x=>q?fuv(q,x,3):fmt(x,3), dq=q?` data-q="${q}"`:'';
+  if(f.kind==='sn'){ const sv=f.solvedIf(n), r=R&&R.ok&&R.res[n.id]; const shown = sv ? (r&&r[f.solvedKey]!=null?sfmt(r[f.solvedKey]):'') : (v===''||v==null?'':inVal(q,v));
+    return `<div class="fld"><label for="${id}">${f.label}${sv?' <small>(solved)</small>':''}</label><input id="${id}" data-k="${f.key}"${dq} ${sv?`data-sv="${f.solvedKey}" disabled class="solved"`:''} type="${sv?'text':'number'}" step="any" value="${esc(shown)}"><span class="u">${ul(f.unit)}</span></div>`; }
+  if(f.kind==='num') return `<div class="fld"><label for="${id}">${f.label}</label><input id="${id}" data-k="${f.key}" type="number" step="any" value="${v===''||v==null?'':esc(inVal(q,v))}"${f.list?` list="${f.list}"`:''}><span class="u">${ul(f.unit)}</span></div>`;
+  if(f.kind==='mode'){ const sv=isSolvedMode(n,f); const r=R&&R.ok&&R.res[n.id]; const shown = sv ? (r&&r[f.solvedKey]!=null?sfmt(r[f.solvedKey]):'') : (v===''||v==null?'':inVal(q,v));
+    return `<div class="fld m"><label for="${id}">${f.label}</label><select id="${id}-m" data-k="${f.mkey}" aria-label="${f.label}: fixed or solved">${f.opts.map(([a,b])=>`<option value="${a}"${(n.p[f.mkey]===a||(n.type==='sink'&&a==='solved'&&n.p[f.mkey]!=='fixed'))?' selected':''}>${b}</option>`).join('')}</select><input id="${id}" data-k="${f.key}" ${sv?`data-sv="${f.solvedKey}" disabled class="solved"`:''}${dq} type="${sv?'text':'number'}" step="any" value="${esc(shown)}"><span class="u">${ul(f.unit)}</span></div>`; }
+  if(f.kind==='check') return `<div class="fld wide"><label for="${id}">${f.label}</label><input id="${id}" data-k="${f.key}" type="checkbox" ${v===true?'checked':''} style="width:auto;justify-self:start"></div>`;
+  if(f.kind==='select') return `<div class="fld wide"><label for="${id}">${f.label}</label><select id="${id}" data-k="${f.key}">${f.opts.map(([a,b])=>`<option value="${a}"${a===v?' selected':''}>${b}</option>`).join('')}</select></div>`;
+  if(f.kind==='fluid') return `<div class="fld wide"><label for="${id}">${f.label}</label><select id="${id}" data-k="fluid">${Object.entries(FLUIDS).map(([a,b])=>`<option value="${a}"${a===v?' selected':''}>${b.n}</option>`).join('')}</select></div>`;
+  return '';
+}
+function pipeHelper(){
+  return `<div class="helper">
+    <div class="fld"><label for="h-mat">Size from table</label><select id="h-mat"><option value="">Choose…</option><option value="pe">PE / HDPE (OD × SDR)</option><option value="steel">Steel (DN × schedule)</option></select></div>
+    <div id="h-pe" hidden><div class="fld"><label for="h-od">OD (mm)</label><select id="h-od">${PE_OD.map(o=>`<option${o===110?' selected':''}>${o}</option>`).join('')}</select></div>
+      <div class="fld"><label for="h-sdr">SDR</label><select id="h-sdr">${PE_SDR.map(o=>`<option${o===17?' selected':''}>${o}</option>`).join('')}</select></div></div>
+    <div id="h-st" hidden><div class="fld"><label for="h-dn">DN</label><select id="h-dn">${Object.keys(STEEL.STD).map(o=>`<option${o==='100'?' selected':''}>${o}</option>`).join('')}</select></div>
+      <div class="fld"><label for="h-sch">Schedule</label><select id="h-sch">${['STD','XS','XXS','10','40','80','160','10S','40S','80S'].map(o=>`<option>${o}</option>`).join('')}</select></div></div>
+    <div class="note" id="h-out"></div></div>`;
+}
+function helperCalc(){
+  const mat=$('#h-mat').value; $('#h-pe').hidden=mat!=='pe'; $('#h-st').hidden=mat!=='steel'; let id=null, note='';
+  if(mat==='pe'){ const od=+$('#h-od').value, sdr=+$('#h-sdr').value, e=Math.ceil(od/sdr*10)/10; id=od-2*e; note=`Wall ${fu('D',e,1)} (minimum, OD/SDR). Mean wall is about 5–10% thicker; edit the ID if you need it.`; }
+  if(mat==='steel'){ const dn=$('#h-dn').value, sc=$('#h-sch').value; id=(STEEL[sc]||{})[dn]||null; note= id?'ASME B36.10/B36.19 ID.':`No ${sc} wall for DN${dn}.`; }
+  $('#h-out').innerHTML = id? `ID ${fu('D',id,2)}. ${note} <button class="btn" id="h-apply">Use this ID</button>` : note;
+  const b=$('#h-apply'); if(b) b.onclick=()=>{ const n=findSel(); pushUndo(); n.p[n.type==='reducer'?'D2':'D']=+id.toFixed(2); changed(true); };
+}
+function fitEditor(n){
+  const rows=Object.entries(n.p.fits||{}).filter(([k])=>FIT[k]);
+  const groups={}; Object.entries(FIT).forEach(([k,o])=>{(groups[o.grp]=groups[o.grp]||[]).push([k,o]);});
+  return `<div class="sect">Fittings in this segment</div>
+    ${rows.length?rows.map(([k,c])=>`<div class="frow"><label for="fit-${k}">${esc(FIT[k].grp)}<small>${esc(FIT[k].name)}</small></label><input id="fit-${k}" data-fit="${k}" type="number" min="0" step="1" value="${c}" aria-label="Quantity"><button class="btn xs" data-rmfit="${k}" title="Remove">×</button></div>`).join(''):'<p class="note">No fittings yet.</p>'}
+    <div class="fld wide"><label for="f-addfit">Add fitting</label><select id="f-addfit"><option value="">Choose…</option>${Object.entries(groups).map(([g,arr])=>`<optgroup label="${esc(g)}">${arr.map(([k,o])=>`<option value="${k}">${esc(o.name)}</option>`).join('')}</optgroup>`).join('')}</select></div>`;
+}
+function splitEditor(n){
+  const outs=S.links.filter(l=>l.from===n.id);
+  if(!outs.length) return '<div class="sect">Outlets</div><p class="note">No outlets yet. Drag from the right-hand dot to each downstream unit.</p>';
+  if(n.p.bal==='balanced'){ const r=R&&R.ok&&R.res[n.id];
+    return `<div class="sect">Outlets</div>${outs.map(l=>{ const o=r&&r.outlets?r.outlets.find(x=>x.link===l.id):null; return `<div class="fld"><label>${esc(nm(l.to))}</label><input type="text" disabled class="solved" data-svl="${l.id}" value="${o?fuv('Q',o.Q,3):''}"><span class="u">${ul('Q')}</span></div>`; }).join('')}
+      <p class="note">Run finds these flows so that every outlet reaches its fixed pressure. Each balanced outlet needs a Sink with a fixed pressure downstream.</p>`; }
+  const u=n.p.mode==='flow'?ul('Q'):'%';
+  return `<div class="fld wide"><label for="f-mode">Set shares by</label><select id="f-mode" data-k="mode"><option value="pct"${n.p.mode!=='flow'?' selected':''}>Percent of inlet flow</option><option value="flow"${n.p.mode==='flow'?' selected':''}>Flow rate, ${ul('Q')}</option></select></div>
+    <div class="sect">Outlets</div>${outs.map(l=>`<div class="fld"><label for="sp-${l.id}">${esc(nm(l.to))}</label><input id="sp-${l.id}" data-split="${l.id}" type="number" step="any" placeholder="rest" value="${l.split==null||l.split===''?'':(n.p.mode==='flow'?inVal('Q',l.split):l.split)}"><span class="u">${u}</span></div>`).join('')}
+    <p class="note">Leave one outlet blank and it takes the flow that is left.</p>`;
+}
+function insertReducer(segId){
+  const seg=nodeById(segId), il=S.links.find(l=>l.to===segId); if(!seg||!il) return; pushUndo();
+  const x0=seg.x, y0=seg.y; downstream(segId).forEach(id=>{ const m=nodeById(id); if(m) m.x+=NW+44; });
+  const r=newNode('reducer', x0, y0); r.p.D2=+seg.p.D; il.to=r.id; S.links.push({id:uid(),from:r.id,to:segId});
+  sel={kind:'node',id:r.id}; changed(true);
+}
+function curvePlot(n,r){
+  const p=n.p, s=(+p.speed||100)/100, H0=+p.H0, Qr=+p.Qr, Hr=+p.Hr, Qx=+p.Qx, Hx=+p.Hx;
+  if(!(Qx>0 && H0>0 && Qr>0)) return '';
+  const qop=r&&r.Q!=null?Math.abs(r.Q):null, hop=r&&r.H!=null?r.H:null;
+  const qmax=Math.max(Qx, qop||0)*1.1, hmax=Math.max(H0, hop||0)*1.15;
+  const W=290, Hh=160, l=38, rt=10, t=10, b=28, X=q=>l+q/qmax*(W-l-rt), Y=h=>t+(1-h/hmax)*(Hh-t-b);
+  const line=(sp)=>{ const pts=[]; for(let i=0;i<=48;i++){ const q=i/48*Qx*sp; const h=pumpH(Object.assign({},p,{speed:sp*100}),q); if(h<0) break; pts.push(`${X(q).toFixed(1)},${Y(h).toFixed(1)}`); } return pts.join(' '); };
+  const nice=v=>{ const m=Math.pow(10,Math.floor(Math.log10(v))); return Math.round(v/m)*m; };
+  let g=`<svg class="cplot" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Pump curve with operating point">`;
+  g+=`<line class="ax" x1="${l}" y1="${Y(0)}" x2="${W-rt}" y2="${Y(0)}"/><line class="ax" x1="${l}" y1="${t}" x2="${l}" y2="${Y(0)}"/>`;
+  const qtU=nice(toU('Q',qmax)*0.8), htU=nice(toU('H',hmax)*0.8), qt=fromU('Q',qtU), ht=fromU('H',htU);
+  g+=`<text x="${l}" y="${Hh-12}" text-anchor="middle">0</text><text x="${X(qt)}" y="${Hh-12}" text-anchor="middle">${+qtU.toPrecision(6)}</text><text x="${W-rt}" y="${Hh-2}" text-anchor="end">${ul('Q')}</text>`;
+  g+=`<text x="${l-5}" y="${Y(ht)+3}" text-anchor="end">${+htU.toPrecision(6)}</text><text x="${l-5}" y="${Y(0)+3}" text-anchor="end">0</text><text x="${l-5}" y="${t+8}" text-anchor="end">${ul('H')}</text>`;
+  g+=`<line class="ax" x1="${X(qt)}" y1="${Y(0)}" x2="${X(qt)}" y2="${Y(0)+3}"/><line class="ax" x1="${l-3}" y1="${Y(ht)}" x2="${l}" y2="${Y(ht)}"/>`;
+  if(Math.abs(s-1)>1e-6) g+=`<polyline class="cv0" points="${line(1)}"/>`;
+  g+=`<polyline class="cv" points="${line(s)}"/>`;
+  [[0,H0],[Qr,Hr],[Qx,Hx]].forEach(([q,h])=>g+=`<circle class="pt" cx="${X(q)}" cy="${Y(h)}" r="2.6"/>`);
+  if(qop!=null && hop!=null && isFinite(hop)){ const lx=X(qop), ly=Y(hop), right=lx<W*0.55;
+    g+=`<line class="ax" x1="${lx}" y1="${ly}" x2="${lx}" y2="${Y(0)}" stroke-dasharray="2 3"/><circle class="op" cx="${lx}" cy="${ly}" r="4.5"/><text class="opl" x="${right?lx+8:lx-8}" y="${Math.min(Y(0)-6, ly+18)}" text-anchor="${right?'start':'end'}">${fu('Q',qop,1)} · ${fu('H',hop,1)}</text>`; }
+  g+=`</svg>`;
+  return g+`<p class="note">Solid line: curve at ${fmt(s*100,0)}% speed${Math.abs(s-1)>1e-6?'; dashed: 100% speed':''}. Dots: your three points. Blue: operating point.</p>`;
+}
+function resultHtml(n){
+  if(!R) return '';
+  const r=R.res&&R.res[n.id]; let h='<div class="sect">Results</div>';
+  if(stale) h+='<div class="msg w">Inputs changed since the last run. Press Run.</div>';
+  ((r&&r.msgs)||[]).forEach(m=>h+=`<div class="msg ${m.sev}">${esc(m.msg)}${m.act==='insRed'?` <button class="btn xs2" data-insred="${n.id}">Insert reducer</button>`:''}</div>`);
+  if(!R.ok||!r||r.Q==null) return h;
+  const kv=[], P=(a,b)=>kv.push([a,b]);
+  P('Flow',fu('Q',r.Q,3));
+  if(n.type==='reducer'){ P('Inlet ID',fu('D',r.D,1)); P('Outlet ID',fu('D',r.Dout,1)); P('Included angle',`${fmt(reducerAngle(n.p),0)}°`); }
+  else if(r.D) P('Inside diameter',fu('D',r.D,1));
+  if(n.type==='orifice' && r.bore!=null){ P('Bore',fu('D',r.bore,2)); P('β = d/D',fmt(r.beta,4)); }
+  if(r.v){ P('Velocity',fu('v',r.v,3)); P('Reynolds number',fmt(r.Re,0)); }
+  if(r.f) P('Friction factor (Darcy)',fmt(r.f,5));
+  if(r.K!=null) P('K',fmt(r.K,4));
+  if(r.Ksum!=null) P('Total K, fittings',fmt(r.Ksum,3));
+  if(r.Leff) P('Effective length',fu('L',r.Leff,1));
+  if(r.dPfric) P('Friction ΔP',fu('dP',r.dPfric,3));
+  if(r.kpa100) P('Friction gradient',fu('grad',r.kpa100,3));
+  if(r.dPfit) P('Fitting ΔP',fu('dP',r.dPfit,3));
+  if(r.dPstat) P('Static ΔP',fu('dP',r.dPstat,3));
+  if(r.dPoth) P(n.type==='cv'?'Valve ΔP':'Fixed ΔP',fu('dP',r.dPoth,3));
+  if(r.wideOpen) P('Wide open: flow',fu('Q',r.wideOpen.Q,2));
+  if(n.type==='cv'){ if(r.Cv!=null) P(n.p.cvMode&&n.p.cvMode!=='fixed'?'Required Cv':'Cv',fmt(r.Cv,2)); if(r.cvPct!=null) P('Share of rated Cv',`${fmt(r.cvPct,0)} %`); if(r.dPchoked!=null) P('Choked-flow ΔP limit (IEC 60534)',fu('dP',r.dPchoked,1)); }
+  if(n.type==='pump'){ P('Head',fu('H',r.H,3)); P('Pressure rise',fu('dP',-r.dPpump,2));
+    if(r.pctRated!=null) P('Flow vs rated',`${fmt(r.pctRated,0)} %`);
+    P('Hydraulic power',fu('P',r.Phyd,2)); if(r.Pshaft!=null){ P('Shaft power',fu('P',r.Pshaft,2)); P('Motor (API 610 margin)',r.motorEach?`${r.motorEach} kW IEC`+(ul('P')!=='kW'?` (${fu('P',r.motorEach,1)})`:''):'over 2000 kW'); }
+    if(r.NPSHa!=null) P('NPSH available',fu('H',r.NPSHa,2)); if(r.NPSHmargin!=null) P('NPSH margin',fu('H',r.NPSHmargin,2)); }
+  if(r.dP!=null){ P('Total ΔP',fu('dP',r.dP,3)); P('Total ΔP as head',fu('H',r.dP*1000/(r.rho*G),3)); }
+  if(r.Pin!=null && r.Pout!=null && r.Pin!==r.Pout){ P('Pressure in',fu('Pg',r.Pin,2)); P('Pressure out',fu('Pg',r.Pout,2)); }
+  else if(r.P!=null) P('Pressure',fu('Pg',r.P,2));
+  if(r.zout!=null && (n.type==='sink'||n.type==='segment'||n.type==='source')) P('Elevation',fu('L',r.zout,2));
+  if(r.v) P('API RP 14E erosional velocity',`${fmt(r.vePct,1)} % used`);
+  if(r.margin!=null) P('Margin over minimum',fu('dP',r.margin,2));
+  if(n.type==='pump' && n.p.hMode==='curve') h+=curvePlot(n,r);
+  h+=`<div class="kv">${kv.map(([a,b])=>`<span>${a}</span><span>${b}</span>`).join('')}</div>`;
+  if(r.fitRows && r.fitRows.length){ const nmF=x=>x.lbl ? x.lbl+' ('+FIT[x.k].name.toLowerCase()+')' : x.k==='entr'?'Entrance':x.k==='exit'?'Exit':x.k==='chkrev'?'Check valve shut (reverse flow)':(FIT[x.k].grp+', '+FIT[x.k].name);
+    h+=`<table class="mini"><thead><tr><th>Fitting</th><th>No.</th><th>K each</th><th>ΔP ${ul('dP')}</th></tr></thead><tbody>${r.fitRows.map(x=>`<tr><td class="l">${esc(nmF(x))}</td><td>${x.c}</td><td>${x.k==='chkrev'?'closed':fmt(x.K,3)}</td><td>${fuv('dP',x.dP,3)}</td></tr>`).join('')}</tbody></table>`; }
+  if(r.outlets){ const anyBack=r.outlets.some(o=>o.Q<-1e-3);
+    h+=`<table class="mini"><thead><tr><th>Outlet</th><th>${ul('Q')}</th>${anyBack?'':'<th>%</th>'}</tr></thead><tbody>${r.outlets.map(o=>`<tr><td class="l">${esc(nm(o.to))}</td><td>${fuv('Q',o.Q,2)}</td>${anyBack?'':`<td>${fmt(o.frac*100,1)}</td>`}</tr>`).join('')}</tbody></table>`;
+    if(anyBack) h+=`<p class="note">A negative flow means that leg runs backwards: a pump in one branch is pushing flow round through another. Put a check valve in the segments that should only flow forward.</p>`; }
+  if(r.inlets && r.inlets.length>1) h+=`<table class="mini"><thead><tr><th>Inlet</th><th>${ul('Q')}</th></tr></thead><tbody>${r.inlets.map(x=>`<tr><td class="l">${esc(nm(x.from))}</td><td>${fuv('Q',x.Q,2)}</td></tr>`).join('')}</tbody></table>`;
+  return h;
+}
+function settingsPanel(){
+  const st=S.set;
+  return `<div class="about"><b>Line Hydraulics Builder v1.0</b> by Johann Cruz, 15 Nov 2026.<div class="ded">Dedicated to the friends and colleagues who keep me going: Richard Clemente, Raphael Angelo Domingo, Jamieson Hicks, Jeff Magadia, Galileo Montalbo, Lillie Pepper, Haribaskar Punacheri, Isiah Jonas Ranos, Mark Lester Real, Jeazel Regonaos and Lawrence Sumera.</div>Screening and design-check tool for steady, single-phase, incompressible liquid flow. Provided without warranty. Check results independently before you use them in design or in issued documents.<div class="docs"><a href="https://cruzjohann.github.io/engcalc/hydraulics/docs/Line-Hydraulics-Builder-Guide.pdf" target="_blank" rel="noopener">User guide (PDF)</a> · <a href="https://cruzjohann.github.io/engcalc/hydraulics/docs/Line-Hydraulics-Technical-Reference.pdf" target="_blank" rel="noopener">Technical reference: equations and methods (PDF)</a></div></div>
+    <h3>Settings</h3><div class="kind">Apply to the whole diagram</div>
+    <div class="sect">Units of measure</div>
+    <div class="fld wide"><label for="s-upre">Unit system</label><select id="s-upre">${Object.entries(UPRESETS).map(([k,v])=>`<option value="${k}"${unitPreset()===k?' selected':''}>${v[0]}</option>`).join('')}${unitPreset()?'':'<option value="" selected>Custom</option>'}</select></div>
+    <details class="ugrid"${unitPreset()?'':' open'}><summary>Change single units</summary>${Object.entries(UNITS).map(([q,U])=>`<div class="fld"><label for="s-u-${q}">${U.n}</label><select id="s-u-${q}" data-u="${q}">${U.o.map(o=>`<option value="${o[0]}"${uo(q)[0]===o[0]?' selected':''}>${o[1]}</option>`).join('')}</select></div>`).join('')}</details>
+    <p class="note">Units change only what you see and type. Calculations run in SI, and saved diagrams keep SI values, so a diagram opens the same in any unit system.</p>
+    <div class="sect">Limits and constants</div>
+    <div class="fld"><label for="s-vmax">Maximum velocity</label><input id="s-vmax" data-s="vmax" data-q="v" type="number" step="any" value="${inVal('v',st.vmax)}"><span class="u">${ul('v')}</span></div>
+    <div class="fld"><label for="s-vmin">Minimum velocity</label><input id="s-vmin" data-s="vmin" data-q="v" type="number" step="any" value="${inVal('v',st.vmin)}"><span class="u">${ul('v')}</span></div>
+    <div class="fld"><label for="s-C">API RP 14E constant C</label><input id="s-C" data-s="C" type="number" step="any" value="${st.C}"><span class="u">–</span></div>
+    <div class="fld"><label for="s-Patm">Atmospheric pressure</label><input id="s-Patm" data-s="Patm" data-q="Pa" type="number" step="any" value="${inVal('Pa',st.Patm)}"><span class="u">${ul('Pa')}</span></div>
+    <div class="sect">How Run works</div>
+    <ol>
+      <li>Each Source and Sink has a flow and a pressure. Set each to <b>Fixed</b> (you enter it) or <b>Solved</b> (Run works it out). A Pump head or Control valve Cv can be set to <b>Find</b>.</li>
+      <li>A Splitter has <b>Fixed shares</b> (you enter % or a flow) or is <b>Balanced</b> (Run finds the split from the pressures).</li>
+      <li>Run checks that the fixed values match what can be solved and names the unit to change if they do not.</li>
+      <li>If every flow is fixed, Run back-calculates pressures, pump head and valve ΔP. If any flow is free, Run balances the network so pressures agree at every Splitter, Combiner and Sink.</li>
+      <li>Tags on each unit: outlined = fixed by you, filled = solved by Run.</li>
+    </ol>
+    <div class="sect">Building</div>
+    <ol>
+      <li>Click units in the left list to add them after the selected unit, or drag them onto the drawing. Drop a unit on a connection to insert it.</li>
+      <li>Drag from a right-hand dot to another unit to connect. Only a Splitter has several outlets and only a Combiner has several inlets.</li>
+      <li>Fittings, entrance and exit go inside a Pipe segment.</li>
+    </ol>
+    <div class="sect">Method</div>
+    <p class="note">Friction: Darcy–Weisbach. Colebrook–White from Re 2100 up, including the transition zone (conservative); 64/Re below Re 1800; straight ramp between 1800 and 2100. Fittings: Hooper 2K, K = K₁/Re + K∞(1 + 1/D[in]). Reducers, orifices: Hooper 1988. Control valve: ΔP[kPa] = SG·(11.56·Q/Cv)², SG = ρ/999 (water at 15 °C). Static: ρ·g·Δz. Head: ΔP/(ρ·g). Network: Newton–Raphson on all pressures and flows together.</p>
+    <p class="note">Pump curve: quadratic through shutoff, rated and runout points; affinity laws for speed. For pumps in parallel, draw each pump as its own block between a Splitter and a Combiner. NPSHa = (P_suction + P_atm − P_v)/(ρg) + v²/2g. Motor: next IEC size above shaft power × 1.25 (≤22 kW), × 1.15 (≤55 kW) or × 1.10, per API 610. Control valve: flow, outlet-pressure and inlet-pressure setpoints each fix one value and Run finds the ΔP and required Cv; choked limit ΔP = F_L²(P₁ − F_F·P_v), IEC 60534.</p>
+    <div class="sect">Validation (v1.0, 15 Nov 2026)</div>
+    <p class="note">Formulas checked against the open-source <i>fluids</i> library and the published Hooper tables: friction factor, all 30 fitting K values, reducers and expanders, orifices, valve Cv (IEC 60534) and the choked-flow factor. Network results checked against a separately written solver on 6 hand-built networks covering every unit and mode and 588 random networks: flows within 0.000001 m³/h and pressures within 0.0001 kPa. Use is limited to steady, single-phase, incompressible liquid flow.</p>
+    <p class="note">Keys: Delete removes the selection, Ctrl+Z undoes, Ctrl+D duplicates, Ctrl+Enter runs.</p>`;
+}
+function renderPanel(){
+  const el=$('#panel'), s=findSel();
+  if(!s){ el.innerHTML=settingsPanel();
+    el.querySelectorAll('[data-s]').forEach(inp=>{ inp.addEventListener('focus',()=>pushUndo(),{once:true}); inp.addEventListener('input',()=>{ let v=parseFloat(inp.value); if(isFinite(v)&&inp.dataset.q) v=fromU(inp.dataset.q,v); S.set[inp.dataset.s]=isFinite(v)?v:0; changed(false,true); }); });
+    const up=$('#s-upre'); up.onchange=()=>{ if(!up.value) return; pushUndo(); S.set.units=presetUnits(up.value); changed(true); };
+    el.querySelectorAll('[data-u]').forEach(sl=>sl.onchange=()=>{ pushUndo(); S.set.units=Object.assign(presetUnits('si'), S.set.units||{}, {[sl.dataset.u]:sl.value}); changed(true); });
+    return; }
+  if(sel.kind==='link'){ const a=nodeById(s.from), b=nodeById(s.to), lr=R&&R.ok&&R.lres[s.id];
+    el.innerHTML=`<h3>Connection</h3><div class="kind">${esc(a?a.name:'')} → ${esc(b?b.name:'')}</div>
+      ${a&&a.type==='splitter'?`<p class="note">Set this outlet's flow on ${esc(a.name)}.</p>`:''}
+      ${lr?`<div class="kv"><span>Flow</span><span>${lr.Q!=null?fu('Q',lr.Q,3):'–'}</span><span>Pressure</span><span>${fu('Pg',lr.P,2)}</span><span>Inside diameter</span><span>${lr.D?fu('D',lr.D,1):'–'}</span></div>`:''}
+      <div class="row"><button class="btn danger" id="bDel">Delete connection</button></div>`;
+    $('#bDel').onclick=deleteSel; return; }
+  const n=s, T=TYPES[n.type];
+  let h=`<h3>${esc(n.name)}</h3><div class="kind">${T.label} · ${T.sub}</div>
+    <div class="fld wide"><label for="f-name">Name</label><input id="f-name" data-k="__name" type="text" value="${esc(n.name)}" style="font-family:var(--font-body)"></div>`;
+  (FIELDS[n.type]||[]).forEach(f=>{ h+=fieldHtml(n,f); });
+  if(n.type==='segment'){ h+=pipeHelper(); h+=fitEditor(n); }
+  if(n.type==='reducer'){ h+=pipeHelper().replace('Size from table','Outlet size from table'); }
+  if(n.type==='orifice') h+=`<p class="note">Thin, sharp-edged plate (Hooper 1988). A plate thickness applies Hooper's thick-orifice factor. Find bore sizes a restriction orifice: fix a flow and a pressure elsewhere and Run returns the bore.</p>`;
+  if(n.type==='splitter') h+=splitEditor(n);
+  if(n.type==='splitter'||n.type==='combiner') h+=`<p class="note">No pressure drop here. Put the tee (run or branch) inside the Pipe segment on each leg.</p>`;
+  if(n.type==='sink') h+=`<p class="note">The minimum pressure is only checked when Pressure is Solved. Leave it blank if there is none.</p>`;
+  if(CASEF[n.type] && S.cases.length>1) h+=`<p class="note">Flow, pressure and mode values on this unit belong to the case “${esc(S.cases[S.ci].name)}”.</p>`;
+  h+=`<div id="pres">${resultHtml(n)}</div>
+    <div class="row"><button class="btn" id="bDup">Duplicate</button><button class="btn danger" id="bDel">Delete unit</button></div>
+    <datalist id="roughlist">${ROUGH.map(([v,l])=>`<option value="${inVal('D',v)}">${l}</option>`).join('')}</datalist>`;
+  el.innerHTML=h;
+  el.querySelectorAll('[data-k]').forEach(inp=>{
+    inp.addEventListener('focus',()=>pushUndo(),{once:true});
+    const ev = inp.tagName==='SELECT'||inp.type==='checkbox' ? 'change' : 'input';
+    inp.addEventListener(ev,()=>{
+      const k=inp.dataset.k; if(ev==='change') pushUndo();
+      if(k==='__name'){ n.name=inp.value; el.querySelector('h3').textContent=n.name; changed(false,true); return; }
+      if(inp.type==='checkbox'){ n.p[k]=inp.checked; changed(false,true); return; }
+      if(inp.tagName==='SELECT'){
+        if(k==='mode'){ const Qin=(R&&R.ok&&R.res[n.id]&&R.res[n.id].Q)||0;
+          S.links.filter(l=>l.from===n.id&&l.split!=null&&l.split!==''&&isFinite(+l.split)).forEach(l=>{ l.split = inp.value==='flow' ? +(Qin*(+l.split)/100).toFixed(3) : (Qin>0? +((+l.split)/Qin*100).toFixed(3) : 0); }); }
+        n.p[k]=inp.value;
+        if(k==='fluid' && FLUIDS[inp.value].rho){ const F=FLUIDS[inp.value]; n.p.rho=F.rho; n.p.mu=F.mu; n.p.T=F.T; n.p.Pv=F.Pv; }
+        if(k==='hMode' && inp.value==='curve'){ const r=R&&R.ok&&R.res[n.id]; const H=(r&&r.H>0?r.H:(+n.p.H||30)), Q=(r&&r.Q>0?r.Q:(+n.p.Qr||30));
+          if(n.p.H0===''||n.p.H0==null){ n.p.H0=+(1.25*H).toFixed(1); n.p.Hr=+H.toFixed(1); n.p.Qr=+Q.toFixed(1); n.p.Qx=+(1.5*Q).toFixed(1); n.p.Hx=+(0.6*H).toFixed(1); } }
+        if(k==='cvMode'){ const r=R&&R.ok&&R.res[n.id];
+          if(inp.value==='flow' && (n.p.Qset===''||n.p.Qset==null) && r) n.p.Qset=+Math.abs(r.Q).toFixed(2);
+          if(inp.value==='pdown' && (n.p.Pset===''||n.p.Pset==null) && r) n.p.Pset=+r.Pout.toFixed(1);
+          if(inp.value==='pup' && (n.p.Pset===''||n.p.Pset==null) && r) n.p.Pset=+r.Pin.toFixed(1); }
+        if(/Mode$/.test(k)){ const f=(FIELDS[n.type]||[]).find(x=>x.mkey===k); const r=R&&R.ok&&R.res[n.id]; if(f && r && r[f.solvedKey]!=null && !isSolvedMode(n,f) && (n.p[f.key]===''||n.p[f.key]==null)) n.p[f.key]=+(+r[f.solvedKey]).toFixed(3); }
+        changed(true); return; }
+      let v=parseFloat(inp.value); const fq0=fieldQ(n,k); if(fq0 && isFinite(v)) v=fromU(fq0,v);
+      if(['Pmin','t','D1','Cvr','NPSHr','eff','Qr','H0','Hr','Qx','Hx','Qset','Pset'].includes(k)) n.p[k]= inp.value.trim()===''? '' : (isFinite(v)?v:'');
+      else n.p[k]=isFinite(v)?v:0;
+      if((k==='rho'||k==='mu'||k==='T'||k==='Pv') && n.type==='source'){ n.p.fluid='custom'; const fs=$('#f-fluid'); if(fs) fs.value='custom'; }
+      changed(false,true);
+    });
+  });
+  if(n.type==='segment'||n.type==='reducer'){ ['h-mat','h-od','h-sdr','h-dn','h-sch'].forEach(i=>$('#'+i).addEventListener('change',helperCalc)); }
+  el.querySelectorAll('[data-fit]').forEach(inp=>{ inp.addEventListener('focus',()=>pushUndo(),{once:true}); inp.addEventListener('input',()=>{ const v=parseFloat(inp.value); n.p.fits[inp.dataset.fit]=isFinite(v)&&v>=0?v:0; changed(false,true); }); });
+  el.querySelectorAll('[data-rmfit]').forEach(b=>b.onclick=()=>{ pushUndo(); delete n.p.fits[b.dataset.rmfit]; changed(true); });
+  const af=$('#f-addfit'); if(af) af.onchange=()=>{ if(!af.value) return; pushUndo(); n.p.fits=n.p.fits||{}; n.p.fits[af.value]=(+n.p.fits[af.value]||0)+1; const k=af.value; changed(true); const fi=$('#fit-'+k); if(fi) fi.focus(); };
+  el.querySelectorAll('[data-split]').forEach(inp=>{ const l=S.links.find(x=>x.id===inp.dataset.split); inp.addEventListener('focus',()=>pushUndo(),{once:true}); inp.addEventListener('input',()=>{ let v=parseFloat(inp.value); if(isFinite(v)&&n.p.mode==='flow') v=fromU('Q',v); if(isFinite(v)) l.split=v; else delete l.split; changed(false,true); }); });
+  $('#bDel').onclick=deleteSel; $('#bDup').onclick=duplicateSel; wireInsRed();
+}
+function wireInsRed(){ document.querySelectorAll('#panel [data-insred]').forEach(b=>b.onclick=()=>insertReducer(b.dataset.insred)); }
+function updatePanelResults(){
+  const n=findSel(); if(!n||sel.kind!=='node') { if(!n) return; renderPanel(); return; }
+  const pr=$('#pres'); if(pr){ pr.innerHTML=resultHtml(n); wireInsRed(); }
+  const r=R&&R.ok&&R.res[n.id];
+  document.querySelectorAll('#panel [data-sv]').forEach(i=>{ const v=r&&r[i.dataset.sv]; i.value = v!=null ? (i.dataset.q?fuv(i.dataset.q,v,3):fmt(v,3)) : ''; });
+  document.querySelectorAll('#panel [data-svl]').forEach(i=>{ const o=r&&r.outlets?r.outlets.find(x=>x.link===i.dataset.svl):null; i.value=o?fuv('Q',o.Q,3):''; });
+}
+function deleteSel(){
+  const s=findSel(); if(!s) return; pushUndo();
+  if(sel.kind==='link') S.links=S.links.filter(l=>l!==s);
+  else { const ins=S.links.filter(l=>l.to===s.id), outs=S.links.filter(l=>l.from===s.id);
+    S.links=S.links.filter(l=>l.to!==s.id&&l.from!==s.id);
+    if(ins.length===1&&outs.length===1&&nodeById(outs[0].to).type!=='source') S.links.push({id:uid(),from:ins[0].from,to:outs[0].to});
+    S.nodes=S.nodes.filter(n=>n!==s); }
+  sel=null; changed(true);
+}
+function duplicateSel(){ const s=findSel(); if(!s||sel.kind!=='node') return; pushUndo();
+  const c=JSON.parse(JSON.stringify(s)); c.id=uid(); c.x+=30; c.y+=NH+30; c.name=s.name+' copy'; S.nodes.push(c); sel={kind:'node',id:c.id}; changed(true); }
+
+/* ---------- results drawer ---------- */
+function applySolved(i){
+  const sv=R.solved[i]; const n=nodeById(sv.id); if(!n) return; pushUndo();
+  if(sv.f==='Q') n.p.Q=+sv.v.toFixed(4);
+  else if(sv.f==='P') n.p.P=+sv.v.toFixed(3);
+  else if(sv.f==='H') n.p.H=+sv.v.toFixed(3);
+  else if(sv.f==='Cv') n.p.Cv=+sv.v.toFixed(3);
+  else if(sv.f==='bore') n.p.d=+sv.v.toFixed(2);
+  else if(sv.f==='split'){ const l=S.links.find(x=>x.id===sv.link); if(l){ l.split=+sv.v.toFixed(4); n.p.mode='flow'; } }
+  sv.applied=true; save(); renderDrawer(); if(sel&&sel.kind==='node'&&sel.id===n.id) renderPanel();
+}
+function renderDrawer(){
+  const el=$('#dbody'); $('#drawer').classList.toggle('stale', stale && tab!=='checks');
+  const T=t=>{ document.querySelectorAll('.tab[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab)); };
+  T();
+  if(tab==='cmp'){ renderCmp(el); return; }
+  if(!R||!S.nodes.length){ el.innerHTML='<div class="empty">Add a Source to start. Press Run to solve.</div>'; return; }
+  if(tab==='checks'){
+    if(!R.checks.length){ el.innerHTML='<div class="empty">No problems found.</div>'; return; }
+    el.innerHTML=`<ul class="checks">${R.checks.slice().sort((a,b)=>a.sev===b.sev?0:a.sev==='e'?-1:1).map(c=>`<li data-node="${c.id||''}"><span class="sev ${c.sev}">${c.sev==='e'?'Error':'Warning'}</span><span><b>${esc(nm(c.id))}</b>: ${esc(c.msg)}</span></li>`).join('')}</ul>`;
+  } else if(!R.ok){ el.innerHTML=`<div class="empty">${esc(R.status)} <button class="btn" id="goChecks">Show checks</button></div>`; $('#goChecks').onclick=()=>setTab('checks'); return; }
+  else if(tab==='lines'){
+    if(!R.lines.length){ el.innerHTML='<div class="empty">No complete line yet. Connect a Source through to a Sink.</div>'; return; }
+    el.innerHTML=`<table><thead><tr><th>Line</th><th>Flow at end<br>${ul('Q')}</th><th>Pipe length<br>${ul('L')}</th><th>Static ΔP<br>${ul('dP')}</th><th>Friction + fittings<br>${ul('dP')}</th><th>Valves + fixed<br>${ul('dP')}</th><th>Pump<br>${ul('dP')}</th><th>Total ΔP<br>${ul('dP')}</th><th>Total head<br>${ul('H')}</th><th>Start P<br>${ul('Pg')}</th><th>End P<br>${ul('Pg')}</th><th>Max velocity<br>${ul('v')}</th><th>Max gradient<br>${ul('grad')}</th></tr></thead><tbody>${
+      R.lines.map(l=>`<tr data-node="${l.to}"><td>${esc(nm(l.from))} → ${esc(nm(l.to))}</td><td>${fuv('Q',l.Q,2)}</td><td>${fuv('L',l.L,1)}</td><td>${fuv('dP',l.dPstat,2)}</td><td>${fuv('dP',l.dPdyn,2)}</td><td>${fuv('dP',l.dPoth,2)}</td><td>${l.dPpump?fuv('dP',-l.dPpump,2):'–'}</td><td>${fuv('dP',l.total,2)}</td><td>${fuv('H',l.head,2)}</td><td>${fuv('Pg',l.Pstart,2)}</td><td>${fuv('Pg',l.Pend,2)}</td><td>${fuv('v',l.vmax,3)}</td><td>${fuv('grad',l.kpa100,3)}</td></tr>`).join('')}</tbody></table>`;
+  } else if(tab==='elems'){
+    const rows=R.order.map(id=>[nodeById(id),R.res[id]]).filter(([n,r])=>n&&r&&r.Q!=null);
+    el.innerHTML=`<table><thead><tr><th>Unit</th><th class="l">Type</th><th>Flow<br>${ul('Q')}</th><th>ID<br>${ul('D')}</th><th>Velocity<br>${ul('v')}</th><th>Re</th><th>f / K</th><th>Friction + fittings<br>${ul('dP')}</th><th>Static<br>${ul('dP')}</th><th>Pump / valve / fixed<br>${ul('dP')}</th><th>Total ΔP<br>${ul('dP')}</th><th>P in<br>${ul('Pg')}</th><th>P out<br>${ul('Pg')}</th></tr></thead><tbody>${
+      rows.map(([n,r])=>`<tr class="${r.msgs.some(m=>m.sev==='e')?'e':r.msgs.length?'w':''}" data-node="${n.id}"><td>${esc(n.name)}</td><td class="l">${esc(TYPES[n.type].label)}</td><td>${fuv('Q',r.Q,2)}</td><td>${r.D?fuv('D',r.D,1):'–'}</td><td>${r.v?fuv('v',r.v,3):'–'}</td><td>${r.Re?fmt(r.Re,0):'–'}</td><td>${r.f?fmt(r.f,4):r.K!=null?fmt(r.K,3):'–'}</td><td>${r.dP!=null?fuv('dP',(r.dPfric||0)+(r.dPfit||0),3):'–'}</td><td>${r.dP!=null?fuv('dP',r.dPstat,2):'–'}</td><td>${r.dP!=null?fuv('dP',(r.dPoth||0)+(r.dPpump||0),2):'–'}</td><td>${r.dP!=null?fuv('dP',r.dP,3):'–'}</td><td>${fuv('Pg',r.Pin??r.P,2)}</td><td>${fuv('Pg',r.Pout??r.P,2)}</td></tr>`).join('')}</tbody></table>`;
+  } else if(tab==='solved'){
+    if(!R.solved.length){ el.innerHTML='<div class="empty">Nothing was solved: every value is fixed. Set a value to Solved or Find, then run.</div>'; return; }
+    el.innerHTML=`<table><thead><tr><th>Unit</th><th class="l">Value</th><th>Result</th><th class="l">Unit of measure</th></tr></thead><tbody>${
+      R.solved.map((s,i)=>`<tr data-node="${s.id}"><td>${esc(nm(s.id))}</td><td class="l">${esc(s.what)}</td><td>${UQ_OF[s.u]?fuv(UQ_OF[s.u],s.v,3):fmt(s.v,3)}</td><td class="l">${esc(UQ_OF[s.u]?ul(UQ_OF[s.u]):s.u)}</td></tr>`).join('')}</tbody></table>
+      <p class="note pad">Values worked out by Run. Click a row to select that unit.</p>`;
+  }
+  el.querySelectorAll('[data-node]').forEach(r=>r.addEventListener('click',()=>{ if(!r.dataset.node) return; sel={kind:'node',id:r.dataset.node}; renderPanel(); markSel(); centerOn(r.dataset.node); }));
+}
+function summarize(r){
+  const o={ok:r.ok, status:r.status, nErr:r.checks.filter(c=>c.sev==='e').length, nWarn:r.checks.filter(c=>c.sev==='w').length, v:{}, vmax:0};
+  if(!r.ok) return o;
+  S.nodes.forEach(n=>{ const x=r.res[n.id]; if(!x) return;
+    if(n.type==='source'||n.type==='sink'){ o.v[n.id+'|Q']=x.Q; o.v[n.id+'|P']=x.P; }
+    if(n.type==='pump'){ o.v[n.id+'|H']=x.H; }
+    if(n.type==='cv'){ o.v[n.id+'|Cv']=x.Cv; o.v[n.id+'|dP']=x.dPoth; }
+    if(n.type==='segment' && x.v>o.vmax) o.vmax=x.v; });
+  return o;
+}
+function renderCmp(el){
+  if(!CMP){ el.innerHTML='<div class="empty">Press Run all cases to compare the cases side by side.</div>'; return; }
+  const rows=[];
+  S.nodes.forEach(n=>{
+    if(n.type==='source'||n.type==='sink'){ rows.push([`${n.name} flow`,'Q',n.id+'|Q']); rows.push([`${n.name} pressure`,'Pg',n.id+'|P']); }
+    if(n.type==='pump') rows.push([`${n.name} head`,'H',n.id+'|H']);
+    if(n.type==='cv'){ rows.push([`${n.name} Cv`,'US',n.id+'|Cv']); rows.push([`${n.name} ΔP`,'dP',n.id+'|dP']); } });
+  el.innerHTML=`${CMPstale?'<div class="msg w pad">Inputs changed since Run all cases. Run all cases again to update this table.</div>':''}
+    <table><thead><tr><th>Value</th><th class="l">Unit</th>${CMP.map(c=>`<th>${esc(c.name)}</th>`).join('')}</tr></thead><tbody>
+    <tr><td>Status</td><td class="l"></td>${CMP.map(c=>`<td class="l">${c.s.ok?(c.s.nErr?`${c.s.nErr} error${c.s.nErr>1?'s':''}`:'Solved')+(c.s.nWarn?`, ${c.s.nWarn} warning${c.s.nWarn>1?'s':''}`:''):esc(c.s.status)}</td>`).join('')}</tr>
+    ${rows.map(([lbl,u,k])=>`<tr><td>${esc(lbl)}</td><td class="l">${ul(u)}</td>${CMP.map(c=>`<td>${c.s.ok?(isQ(u)?fuv(u,c.s.v[k],2):fmt(c.s.v[k],2)):'–'}</td>`).join('')}</tr>`).join('')}
+    <tr><td>Max pipe velocity</td><td class="l">${ul('v')}</td>${CMP.map(c=>`<td>${c.s.ok?fuv('v',c.s.vmax,3):'–'}</td>`).join('')}</tr>
+    </tbody></table>`;
+}
+function centerOn(id){ const n=nodeById(id); if(!n) return; const r=svg.getBoundingClientRect(); view.x=r.width/2-(n.x+nodeW(n)/2)*view.k; view.y=r.height/2-(n.y+lay(n).H/2)*view.k; applyView(); }
+function renderStatus(){
+  const st=$('#status');
+  if(!S.nodes.length){ st.className='status'; st.textContent='Empty diagram: add a Source to start'; }
+  else if(!R){ st.className='status'; st.textContent='Not run yet'; }
+  else if(stale){ st.className='status warn'; st.textContent='Inputs changed. Press Run.'; }
+  else if(!R.ok){ st.className='status bad'; st.textContent=R.status; }
+  else { const e=R.checks.filter(c=>c.sev==='e').length, w=R.checks.length-e;
+    st.className='status '+(e?'bad':w?'warn':'ok'); st.textContent=R.status+(e?` · ${e} error${e>1?'s':''}`:'')+(w?` · ${w} warning${w>1?'s':''}`:''); }
+  const n=R?R.checks.length:0; $('#tabChecks').textContent = n?`Checks (${n})`:'Checks';
+}
+function setTab(t){ tab=t; $('#drawer').classList.remove('collapsed'); $('#bDrawer').textContent='Hide results'; renderDrawer(); }
+
+/* ---------- run ---------- */
+function run(){ R=solve(S,S.set); stale=false; render(); renderDrawer(); renderStatus(); updatePanelResults(); save(); }
+function changed(panelToo, keepPanel){
+  if(CMP) CMPstale=true;
+  if(S.auto) R=solve(S,S.set); else stale=true;
+  render(); renderDrawer(); renderStatus();
+  if(panelToo) renderPanel(); else if(keepPanel) updatePanelResults();
+  save();
+}
+function runAll(){
+  syncCase(); const keep=S.ci;
+  CMP=S.cases.map(c=>{ loadCase(c.vals); return {name:c.name, s:summarize(solve(S,S.set))}; });
+  loadCase(S.cases[keep].vals); CMPstale=false; tab='cmp'; run(); renderPanel();
+}
+function buildCaseSel(){ const s=$('#caseSel'); s.innerHTML=S.cases.map((c,i)=>`<option value="${i}"${i===S.ci?' selected':''}>${esc(c.name)}</option>`).join(''); $('#autoRun').checked=!!S.auto; }
+function switchCase(i){ if(i===S.ci) return; syncCase(); S.ci=i; loadCase(S.cases[i].vals); buildCaseSel(); if(S.auto) R=solve(S,S.set); else stale=true; render(); renderDrawer(); renderStatus(); renderPanel(); save(); }
+function openCases(){
+  syncCase();
+  const draw=()=>{ $('#mBody').innerHTML=`<p class="note">Geometry (pipe segments, fittings, reducers, orifices) is shared by every case. Each case keeps its own flows, pressures, Fixed/Solved/Find choices, Splitter shares, pump heads, valve Cv values and fixed ΔPs.</p>
+      ${S.cases.map((c,i)=>`<div class="caserow"><input type="text" data-cname="${i}" value="${esc(c.name)}" aria-label="Case name"><button class="btn" data-cdup="${i}">Duplicate</button><button class="btn danger" data-cdel="${i}" ${S.cases.length<2?'disabled':''}>Delete</button>${i===S.ci?'<span class="note">active</span>':''}</div>`).join('')}`;
+    document.querySelectorAll('[data-cname]').forEach(inp=>inp.addEventListener('input',()=>{ S.cases[+inp.dataset.cname].name=inp.value; buildCaseSel(); save(); }));
+    document.querySelectorAll('[data-cdup]').forEach(b=>b.onclick=()=>{ syncCase(); pushUndo(); const c=S.cases[+b.dataset.cdup]; S.cases.splice(+b.dataset.cdup+1,0,{id:uid(), name:c.name+' copy', vals:JSON.parse(JSON.stringify(c.vals))}); if(S.ci>+b.dataset.cdup) S.ci++; buildCaseSel(); draw(); save(); });
+    document.querySelectorAll('[data-cdel]').forEach(b=>b.onclick=()=>{ const i=+b.dataset.cdel; if(S.cases.length<2) return; syncCase(); pushUndo(); S.cases.splice(i,1);
+      if(i===S.ci){ S.ci=Math.max(0,i-1); loadCase(S.cases[S.ci].vals); changed(true); } else if(i<S.ci) S.ci--; CMP=null; buildCaseSel(); draw(); save(); });
+  };
+  modal('Cases',''); draw();
+}
+
+/* ---------- import / export ---------- */
+function modal(title,html){ $('#mTitle').textContent=title; $('#mBody').innerHTML=html; $('#modal').classList.add('on'); }
+function closeModal(){ $('#modal').classList.remove('on'); }
+function copyFrom(id,btn){ const t=$('#'+id); t.select(); const done=()=>{ btn.textContent='Copied'; setTimeout(()=>btn.textContent='Copy',1500); };
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(t.value).then(done,()=>{ try{ document.execCommand('copy'); done(); }catch(e){ btn.textContent='Select and copy by hand'; } });
+  else { try{ document.execCommand('copy'); done(); }catch(e){} } }
+function tsv(){
+  const rows=[[`Case: ${S.cases[S.ci].name}`, R&&R.ok?R.status:(R?R.status:'not run')]];
+  const c=(q,x)=>typeof x==='number'&&isFinite(x)?+toU(q,x).toPrecision(8):x;
+  rows.push(['Line',`Flow at end ${ul('Q')}`,`Pipe length ${ul('L')}`,`Static dP ${ul('dP')}`,`Friction+fittings ${ul('dP')}`,`Valves+fixed ${ul('dP')}`,`Pump ${ul('dP')}`,`Total dP ${ul('dP')}`,`Total head ${ul('H')}`,`Start P ${ul('Pg')}`,`End P ${ul('Pg')}`,`Max velocity ${ul('v')}`,`Max gradient ${ul('grad')}`]);
+  (R&&R.ok?R.lines:[]).forEach(l=>rows.push([`${nm(l.from)} -> ${nm(l.to)}`,c('Q',l.Q),c('L',l.L),c('dP',l.dPstat),c('dP',l.dPdyn),c('dP',l.dPoth),c('dP',-l.dPpump),c('dP',l.total),c('H',l.head),c('Pg',l.Pstart),c('Pg',l.Pend),c('v',l.vmax),c('grad',l.kpa100)]));
+  rows.push([]); rows.push(['Unit','Type',`Flow ${ul('Q')}`,`ID ${ul('D')}`,`Velocity ${ul('v')}`,'Re','f','K',`Friction ${ul('dP')}`,`Fittings ${ul('dP')}`,`Static ${ul('dP')}`,`Valve/fixed ${ul('dP')}`,`Pump ${ul('dP')}`,`Total dP ${ul('dP')}`,`P in ${ul('Pg')}`,`P out ${ul('Pg')}`]);
+  (R&&R.ok?R.order:[]).forEach(id=>{ const n=nodeById(id), r=R.res[id]; if(!n||!r||r.dP==null) return;
+    rows.push([n.name, TYPES[n.type].label, c('Q',r.Q), r.D?c('D',r.D):'', r.v?c('v',r.v):'', r.Re?+r.Re.toFixed(0):'', r.f?+r.f.toPrecision(6):'', r.K??r.Ksum??'', c('dP',r.dPfric), c('dP',r.dPfit), c('dP',r.dPstat), c('dP',r.dPoth), c('dP',-r.dPpump), c('dP',r.dP), c('Pg',r.Pin), c('Pg',r.Pout)]); });
+  if(R&&R.ok&&R.solved.length){ rows.push([]); rows.push(['Solved values']); R.solved.forEach(s=>{ const q=UQ_OF[s.u]; rows.push([nm(s.id), s.what, q?c(q,s.v):+(+s.v).toFixed(4), q?ul(q):s.u]); }); }
+  return rows.map(r=>r.join('\t')).join('\n');
+}
+/* ---------- printed calculation report ---------- */
+function repNum(q,x){ if(x===''||x==null||!isFinite(+x)) return '–'; const v=isQ(q)?toU(q,+x):+x; return `${+(+v).toPrecision(6)} ${ul(q)}`.trim(); }
+function repInputs(n){
+  const kv=[], P=(a,b)=>kv.push([a,b]);
+  (FIELDS[n.type]||[]).forEach(f=>{
+    if(f.show && !f.show(n)) return; const v=n.p[f.key];
+    if(f.kind==='num') P(f.label, repNum(f.unit,v));
+    else if(f.kind==='mode'){ if(isSolvedMode(n,f)) P(f.label, f.mkey==='Dmode'?'From pipe':'Solved by Run'); else P(f.label, repNum(f.unit,v)+(f.mkey==='Dmode'?'':' (fixed)')); }
+    else if(f.kind==='sn') P(f.label, f.solvedIf(n)?'Found by Run':repNum(f.unit,v));
+    else if(f.kind==='select'){ const o=f.opts.find(x=>x[0]===v); P(f.label, o?o[1]:(v??'–')); }
+    else if(f.kind==='check') P(f.label, v===true?'Yes':'No');
+    else if(f.kind==='fluid') P('Fluid', (FLUIDS[v]||{}).n||'Custom');
+    else if(f.kind==='curve'){ P('Curve, shutoff head', repNum('H',n.p.H0)); P('Curve, rated point', `${repNum('Q',n.p.Qr)} at ${repNum('H',n.p.Hr)}`); P('Curve, runout point', `${repNum('Q',n.p.Qx)} at ${repNum('H',n.p.Hx)}`); }
+  });
+  if(n.type==='segment'){ const fl=Object.entries(n.p.fits||{}).filter(([k,c])=>FIT[k]&&+c>0); P('Fittings', fl.length?fl.map(([k,c])=>`${c} × ${FIT[k].grp}, ${FIT[k].name.toLowerCase()}`).join('<br>'):'None'); }
+  if(n.type==='splitter' && n.p.bal!=='balanced') S.links.filter(l=>l.from===n.id).forEach(l=>P('Share to '+esc(nm(l.to)), l.split==null||l.split===''?'rest':(n.p.mode==='flow'?repNum('Q',l.split):`${l.split} %`)));
+  return `<div class="kv kvin">${kv.map(([a,b])=>`<span>${esc(a)}</span><span>${b}</span>`).join('')}</div>`;
+}
+function repDiagram(){
+  if(!S.nodes.length) return '<p class="note">Empty diagram.</p>';
+  const x0=Math.min(...S.nodes.map(n=>n.x))-20, x1=Math.max(...S.nodes.map(n=>n.x+nodeW(n)))+20, y0=Math.min(...S.nodes.map(n=>n.y))-20, y1=Math.max(...S.nodes.map(n=>n.y+lay(n).H))+20;
+  return `<svg class="rdiag" viewBox="${x0} ${y0} ${x1-x0} ${y1-y0}" xmlns="http://www.w3.org/2000/svg"><defs><marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker></defs><g>${$('#links').innerHTML}${$('#nodes').innerHTML}</g></svg>`;
+}
+function repTab(t){ const keep=tab; tab=t; renderDrawer(); const h=$('#dbody').innerHTML; tab=keep; return h; }
+function repCase(land){
+  let h=`<p class="rstatus">Status: ${esc(R.status)}${R.ok?` · ${R.checks.filter(c=>c.sev==='e').length} errors, ${R.checks.filter(c=>c.sev==='w').length} warnings`:''}</p>`;
+  const dg=`<div class="dpage"><h3>Diagram</h3>${repDiagram()}</div>`;
+  if(land) h+=dg;
+  h+=`<h3>Line summary</h3>${repTab('lines')}`;
+  h+=`<h3>Values found by Run</h3>${repTab('solved')}`;
+  h+=`<h3>Checks</h3>${repTab('checks')}`;
+  if(!land) h+=dg;
+  const order=(R.order||[]).concat(S.nodes.map(n=>n.id)).filter((v,i,a)=>a.indexOf(v)===i);
+  h+=`<h3>Unit inputs and results</h3><div class="units">${order.map(id=>{ const n=nodeById(id); if(!n) return ''; const T=TYPES[n.type];
+    return `<div class="ucard"><div class="uh"><b>${esc(n.name)}</b><span>${T.label}</span></div><div class="ucols"><div><div class="sect">Inputs</div>${repInputs(n)}</div><div>${resultHtml(n)||''}</div></div></div>`; }).join('')}</div>`;
+  return h;
+}
+function buildReportParts(o){
+  syncCase();
+  const keep={ci:S.ci, R, sel, CMP, CMPstale, stale}; sel=null;
+  const list = o.all ? S.cases.map((c,i)=>i) : [S.ci];
+  let body='';
+  list.forEach((i,k)=>{ loadCase(S.cases[i].vals); R=solve(S,S.set); stale=false; render();
+    body+=`<section class="case${k?' brk':''}"><h2>Case: ${esc(S.cases[i].name)}</h2>${repCase(o.orient==='landscape')}</section>`; });
+  if(o.all && S.cases.length>1){ CMP=S.cases.map(c=>{ loadCase(c.vals); return {name:c.name, s:summarize(solve(S,S.set))}; }); CMPstale=false;
+    body+=`<section class="case brk"><h2>Case comparison</h2>${repTab('cmp')}</section>`; }
+  loadCase(S.cases[keep.ci].vals); R=keep.R; sel=keep.sel; CMP=keep.CMP; CMPstale=keep.CMPstale; stale=keep.stale; render(); renderDrawer();
+  const date=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+  const title=o.title||'Line hydraulics calculation';
+  const units=Object.keys(UNITS).filter(q=>q!=='mu').map(q=>ul(q)).join(', ');
+  const appCss=(document.getElementById('appcss')||document.querySelector('style')).textContent.replace(/@media \(prefers-color-scheme: dark\)\{[\s\S]*?\n\}\n/,'').replace(/:root\b/g,':host').replace(/html,body\{[^}]*\}/,'').replace(/(^|\n)body\{[^}]*\}/,'$1');
+  const sz=o.paper==='letter'?'letter':'A4', land=o.orient==='landscape';
+  const pageCss=`@page{size:${sz} ${land?'landscape':'portrait'};margin:14mm 12mm 16mm 12mm;
+    @bottom-left{content:"${title.replace(/["\\]/g,'')}";font:8pt "IBM Plex Sans",sans-serif;color:#5b6b7a}
+    @bottom-right{content:"Page " counter(page) " of " counter(pages);font:8pt "IBM Plex Sans",sans-serif;color:#5b6b7a}}
+  ${land?'':`@page land{size:${sz} landscape;margin:12mm 12mm 14mm 12mm}`}`;
+  const css=`${appCss}
+  :host,.paper{--bg:#ffffff;--surface:#ffffff;--ink:#16212c;--muted:#5b6b7a;--line:#cfd7df;--accent:#0b6e99;--accent-soft:#dcedf5;--grid:#dde3e9;
+    --ok:#1f7a4d;--warn:#a86400;--bad:#b3261e;--warn-soft:#fff1d9;--bad-soft:#fde4e2;
+    --font-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;--font-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;color-scheme:light}
+  svg.rdiag .nbody{fill:#fff;stroke:#cfd7df;stroke-width:1.2} svg.rdiag .node text{fill:#16212c} svg.rdiag .nsub{fill:#5b6b7a} svg.rdiag .nres,svg.rdiag .nrowv{fill:#0b6e99}
+  svg.rdiag .sym{stroke:#16212c;fill:none} svg.rdiag .sym .fill{fill:#16212c} svg.rdiag .port{fill:#fff;stroke:#5b6b7a}
+  svg.rdiag .link path.vis{stroke:#5b6b7a;fill:none} svg.rdiag #arrowhead path,svg.rdiag marker path{fill:#5b6b7a} svg.rdiag .link text{fill:#5b6b7a;stroke:#fff}
+  svg.rdiag .stripe{fill:transparent} svg.rdiag .ndiv{stroke:#cfd7df}
+  svg.rdiag .tag.sv rect{fill:#0b6e99;stroke:#0b6e99} svg.rdiag .tag.sv text{fill:#fff} svg.rdiag .tag.fx rect{fill:#fff;stroke:#5b6b7a} svg.rdiag .tag.fx text{fill:#5b6b7a}
+  svg.rdiag .nrowv.back{fill:#a86400} svg.rdiag .node.w .stripe{fill:#a86400} svg.rdiag .node.e .stripe{fill:#b3261e}
+  .paper{font:9.5pt/1.4 var(--font-body);color:#16212c;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .paper h1{font-size:17pt;margin:0 0 2mm} .paper h2{font-size:13pt;margin:0 0 2mm;color:var(--accent)} .paper h3{font-size:10.5pt;margin:5mm 0 1.5mm;border-bottom:1.5px solid var(--accent);padding-bottom:1mm;break-after:avoid}
+  .brk{break-before:page}
+  ${land?'':`.dpage{page:land;break-before:page;break-after:page} .dpage svg.rdiag{max-height:170mm}`}
+  .rhead{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:1mm 5mm;font-size:9pt;border:1px solid var(--line);border-radius:2mm;padding:3mm 4mm;margin:0 0 6mm}
+  .rhead span:nth-child(odd){color:var(--muted)}
+  .rstatus{margin:0 0 2mm;color:var(--muted)}
+  svg.rdiag{width:100%;height:auto;max-height:${land?120:150}mm;border:1px solid var(--line);border-radius:2mm;background:#fff}
+  svg.rdiag .hit,svg.rdiag .spare,svg.rdiag .nspare{display:none}
+  svg.rdiag .link text{stroke:#fff}
+  .paper table{font-size:7.5pt;break-inside:auto} .paper th{position:static!important;font-size:7pt;white-space:normal} .paper td,.paper td.l{font-size:7.5pt} .paper th,.paper td{padding:2px 4px}
+  .paper tr{break-inside:avoid}
+  .checks li{padding:3px 4px;font-size:8.5pt;cursor:default} .note.pad,.paper .btn{display:none!important}
+  .empty{color:var(--muted);padding:1mm 0}
+  .units{display:grid;grid-template-columns:${land?'1fr 1fr':'1fr'};gap:3mm}
+  .ucard{border:1px solid var(--line);border-radius:2mm;padding:2.5mm 3mm;break-inside:avoid}
+  .uh{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid var(--line);padding-bottom:1mm;margin-bottom:1.5mm} .uh span{color:var(--muted);font-size:8.5pt}
+  .ucols{display:grid;grid-template-columns:1fr 1fr;gap:4mm}
+  .kv{font-size:8pt;gap:0.5mm 3mm} .sect{font-size:7.5pt;margin:0 0 1mm;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+  .kvin{grid-template-columns:auto 1fr} .kvin span:nth-child(even){text-align:left;font-family:var(--font-body)}
+  .ucols .sect{margin-top:0} .cplot{max-width:75mm}
+  .msg{font-size:8pt;padding:1mm 2mm}
+  .meth p{font-size:8.5pt;color:#3c4b59;margin:0 0 2mm}
+  @media screen{ .paper{width:${land?(sz==='A4'?297:279.4):(sz==='A4'?210:215.9)}mm;margin:18px auto 40px;padding:14mm 12mm 16mm;box-shadow:0 4px 24px rgba(0,0,0,.35)} }
+  @media print{ .paper{width:auto;margin:0;padding:0} }`;
+  const html=`<h1>${esc(title)}</h1>
+<div class="rhead"><span>Reference</span><span>${esc(o.ref||'–')}</span><span>Date</span><span>${date}</span>
+<span>Prepared by</span><span>${esc(o.by||'–')}</span><span>Cases</span><span>${o.all?`All (${S.cases.length})`:esc(S.cases[S.ci].name)}</span>
+<span>Units</span><span style="grid-column:2/5">${esc(units)}</span>
+<span>Tool</span><span style="grid-column:2/5">Line Hydraulics Builder v1.0 · cruzjohann.github.io/engcalc/hydraulics</span></div>
+${body}
+<section class="case meth"><h3>Method and limits</h3>
+<p>Friction: Darcy–Weisbach with Colebrook–White from Re 2100 (including the transition zone, conservative); 64/Re below Re 1800; straight ramp between. Fittings: Hooper 2K. Reducers and orifices: Hooper 1988. Control valves: Cv per IEC 60534 with the choked-flow check. Pump: quadratic curve through three points with affinity laws; NPSH available from suction pressure, vapour pressure and velocity head; motor size per API 610 margins. Network: all pressures and flows solved together by Newton–Raphson. Full equations: Technical Reference, cruzjohann.github.io/engcalc/hydraulics/docs.</p>
+<p>For steady, single-phase, incompressible liquid flow only. Not for gas, two-phase, slurry or non-Newtonian flow, or for transients such as water hammer. Fitting K values carry an uncertainty of about 10 to 35 %. Provided without warranty: check results independently before using them in design or in issued documents.</p></section>`;
+  return {title, pageCss, css, html};
+}
+function buildReport(o){ const r=buildReportParts(o); // stand-alone page (used for testing)
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${esc(r.title)}</title><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"><style>${r.pageCss}\n${r.css.replace(/:host\b/g,':root')}\nbody{margin:0}</style></head><body><div class="paper">${r.html}</div></body></html>`; }
+// Report preview: shown over the app, printed with the browser's own print (Save as PDF).
+function closeReport(){ const r=$('#rep'); if(r) r.remove(); const s=$('#repPrint'); if(s) s.remove(); if(window._repTitle){ document.title=window._repTitle; window._repTitle=null; } }
+function printReport(o){
+  closeReport();
+  const r=buildReportParts(o);
+  const st=document.createElement('style'); st.id='repPrint';
+  st.textContent=`${r.pageCss}
+  @media print{ body>*:not(#rep){display:none!important} html,body{height:auto!important;overflow:visible!important;background:#fff!important}
+    #rep{position:static!important;overflow:visible!important;background:none!important;display:block!important} #rep .rtool{display:none!important} }`;
+  document.head.appendChild(st);
+  const d=document.createElement('div'); d.id='rep'; d.setAttribute('role','dialog'); d.setAttribute('aria-label','Report preview');
+  d.innerHTML=`<div class="rtool"><b>Report preview</b><span class="rtip">Print, then choose <b>Save as PDF</b> as the printer. If no print window opens, press Ctrl+P (Cmd+P on a Mac).</span><span style="flex:1"></span><button class="btn primary" id="repGo">Print / Save as PDF</button><button class="btn" id="repX">Close</button></div><div class="rhost"></div>`;
+  document.body.appendChild(d);
+  const sh=d.querySelector('.rhost').attachShadow({mode:'open'}); sh.innerHTML=`<style>${r.css}</style><div class="paper">${r.html}</div>`;
+  window._repTitle=document.title; document.title=r.title;
+  $('#repX').onclick=closeReport;
+  $('#repGo').onclick=()=>{ try{ window.print(); }catch(e){ alert('Printing is blocked here. Open the tool at cruzjohann.github.io/engcalc/hydraulics and print from there.'); } };
+  d.tabIndex=-1; d.focus();
+  d.addEventListener('keydown',ev=>{ if(ev.key==='Escape') closeReport(); });
+}
+$('#bPrint').onclick=()=>{
+  if(!S.nodes.length){ modal('Print report','<p class="note">The diagram is empty. Add units and run first.</p>'); return; }
+  const r=Object.assign({title:'',by:'',ref:'',paper:'a4',orient:'portrait',all:S.cases.length>1}, S.set.rep||{});
+  modal('Print report',`<p class="note">The report runs every printed case again from the current inputs, in the units you have chosen. In the print window choose <b>Save as PDF</b> to keep a PDF.</p>
+    <div class="fld wide"><label for="r-title">Report title</label><input id="r-title" type="text" value="${esc(r.title)}" placeholder="Line hydraulics calculation"></div>
+    <div class="fld wide"><label for="r-ref">Reference</label><input id="r-ref" type="text" value="${esc(r.ref)}" placeholder="optional"></div>
+    <div class="fld wide"><label for="r-by">Prepared by</label><input id="r-by" type="text" value="${esc(r.by)}" placeholder="optional"></div>
+    <div class="fld wide"><label for="r-paper">Paper</label><select id="r-paper"><option value="a4"${r.paper==='a4'?' selected':''}>A4</option><option value="letter"${r.paper==='letter'?' selected':''}>Letter</option></select></div>
+    <div class="fld wide"><label for="r-orient">Orientation</label><select id="r-orient"><option value="portrait"${r.orient==='portrait'?' selected':''}>Portrait</option><option value="landscape"${r.orient==='landscape'?' selected':''}>Landscape</option></select></div>
+    <div class="fld wide"><label for="r-all">Cases</label><select id="r-all"><option value="0"${!r.all?' selected':''}>Active case only</option><option value="1"${r.all?' selected':''}>All cases, with comparison</option></select></div>
+    <div style="display:flex;gap:6px;align-items:center;margin-top:8px"><button class="btn primary" id="r-go">Print</button></div>`);
+  $('#r-go').onclick=()=>{ const o={title:$('#r-title').value.trim(), ref:$('#r-ref').value.trim(), by:$('#r-by').value.trim(), paper:$('#r-paper').value, orient:$('#r-orient').value, all:$('#r-all').value==='1'};
+    S.set.rep=o; save(); closeModal(); printReport(o); };
+};
+$('#bExport').onclick=()=>{ syncCase();
+  modal('Export',`<p class="note">Results are tab-separated: paste them straight into Excel. The diagram text holds every case and can be loaded back with Import.</p>
+    <div style="display:flex;gap:6px;align-items:center"><button class="btn primary" id="cpT">Copy</button><span class="note">Results, active case</span></div><textarea id="tT" readonly>${esc(tsv())}</textarea>
+    <div style="display:flex;gap:6px;align-items:center"><button class="btn primary" id="cpJ">Copy</button><span class="note">Diagram (JSON)</span></div><textarea id="tJ" readonly>${esc(JSON.stringify(S,null,1))}</textarea>`);
+  $('#cpT').onclick=e=>copyFrom('tT',e.target); $('#cpJ').onclick=e=>copyFrom('tJ',e.target); };
+$('#bImport').onclick=()=>{
+  modal('Import diagram',`<p class="note">Choose a .json file saved from this app, or paste diagram text. This replaces the current diagram; Undo brings it back.</p>
+    <input type="file" id="iFile" accept=".json,application/json,text/plain"><textarea id="iTxt" placeholder="Paste diagram JSON here"></textarea>
+    <div style="display:flex;gap:6px;align-items:center"><button class="btn primary" id="iGo">Load diagram</button><span class="note" id="iMsg"></span></div>`);
+  $('#iFile').onchange=e=>{ const f=e.target.files[0]; if(f) f.text().then(t=>$('#iTxt').value=t); };
+  $('#iGo').onclick=()=>{ try{ const o=JSON.parse($('#iTxt').value); let m=o.S||o; if(!Array.isArray(m.nodes)||!Array.isArray(m.links)) throw new Error('missing nodes or links');
+      m=migrate(m); m.nodes.forEach(n=>{ if(!TYPES[n.type]) throw new Error('unknown unit type '+n.type); }); normalize(m);
+      m.set=Object.assign(defaultSettings(),m.set||{}); if(!Array.isArray(m.cases)||!m.cases.length){ m.cases=[{id:uid(),name:'Case 1',vals:null}]; m.ci=0; }
+      pushUndo(); S=m; if(S.cases[S.ci]&&S.cases[S.ci].vals) loadCase(S.cases[S.ci].vals); sel=null; CMP=null; closeModal(); buildCaseSel(); changed(true); fit();
+    }catch(err){ $('#iMsg').textContent='Could not read this text: '+err.message+'.'; } };
+};
+$('#mClose').onclick=()=>{ closeModal(); };
+$('#modal').addEventListener('click',e=>{ if(e.target.id==='modal') closeModal(); });
+
+/* ---------- toolbar / keys ---------- */
+$('#bUndo').onclick=undo;
+$('#bClear').onclick=()=>{ if(!S.nodes.length) return; pushUndo(); const keepAuto=S.auto; S=blank(); S.auto=keepAuto; sel=null; CMP=null; buildCaseSel(); changed(true); };
+$('#bRun').onclick=run; $('#bRunAll').onclick=runAll; $('#bCases').onclick=openCases;
+$('#caseSel').onchange=e=>switchCase(+e.target.value);
+$('#autoRun').onchange=e=>{ S.auto=e.target.checked; if(S.auto) run(); else save(); };
+$('#zIn').onclick=()=>zoomBy(1.2); $('#zOut').onclick=()=>zoomBy(1/1.2); $('#zFit').onclick=fit;
+document.querySelectorAll('.tab[data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+$('#bDrawer').onclick=()=>{ const d=$('#drawer'); d.classList.toggle('collapsed'); $('#bDrawer').textContent=d.classList.contains('collapsed')?'Show results':'Hide results'; };
+window.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); run(); return; }
+  const typing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+  if(e.key==='Escape') closeModal();
+  if(typing) return;
+  if((e.key==='Delete'||e.key==='Backspace')&&sel){ e.preventDefault(); deleteSel(); }
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){ e.preventDefault(); undo(); }
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='d'){ e.preventDefault(); duplicateSel(); }
+});
+
+/* ---------- start ---------- */
+buildPalette();
+S = loadLS(); S = S ? normalize(S) : blank();
+S.set=Object.assign(defaultSettings(), S.set||{});
+if(S.cases[S.ci]&&S.cases[S.ci].vals) loadCase(S.cases[S.ci].vals);
+buildCaseSel();
+R=solve(S,S.set); stale=false;
+render(); renderDrawer(); renderStatus(); renderPanel();
+requestAnimationFrame(fit);
+// re-measure once the web fonts have loaded, since they draw at a different width from the fallback font
+try{ if(document.fonts && document.fonts.ready) document.fonts.ready.then(()=>render()); }catch(e){}
+
+</script>
+</body>
+</html>
