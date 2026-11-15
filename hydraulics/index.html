@@ -410,7 +410,7 @@ function elemDetail(e, q, fv){
       if(p.spec==='find'){ o.dPfit=fv; break; }
       const b = p.spec==='bore' ? (+p.d)/D : +p.beta; o.beta=b; o.bore=b*D;
       const K=orificeK(b, hy.Re, D, +p.t||0); o.K=K; o.dPfit=sg*K*vh; break; }
-    case 'reducer': { const D2=+p.D2, th=reducerAngle(p)*Math.PI/180, f1=friction(hy.Re, (e.eps>=0?e.eps:0.045)/D); let K=0;
+    case 'reducer': { const D2=e.Dout>0?e.Dout:+p.D2, th=reducerAngle(p)*Math.PI/180, f1=friction(hy.Re, (e.eps>=0?e.eps:0.045)/D); let K=0;
       if(hy.Re>0 && D2<D){ const r=D/D2; K = hy.Re<=2500 ? (1.2+160/hy.Re)*(Math.pow(r,4)-1) : (0.6+0.48*f1)*r*r*(r*r-1); K *= th<Math.PI/4 ? 1.6*Math.sin(th/2) : Math.sqrt(Math.sin(th/2)); }
       else if(hy.Re>0 && D2>D){ const b=D/D2; K = hy.Re<4000 ? 2*(1-Math.pow(b,4)) : (1+0.8*f1)*Math.pow(1-b*b,2); if(th<Math.PI/4) K *= 2.6*Math.sin(th/2); }
       o.K=K; o.dPfit=sg*K*vh; break; }
@@ -461,7 +461,7 @@ function solve(model, set){
     else if(t==='splitter'){ if(ni!==1) add('e',n.id, ni?'A Splitter takes one inlet.':'Nothing is connected to this inlet.'); if(no<1) add('e',n.id,'This Splitter has no outlets.'); }
     else if(t==='combiner'){ if(no!==1) add('e',n.id, no?'A Combiner has one outlet.':'Nothing is connected to this outlet.'); if(ni<1) add('e',n.id,'This Combiner has no inlets.'); }
     if(t==='segment' && !(+p.D>0)) add('e',n.id,'Enter the inside diameter.');
-    if(t==='reducer' && !(+p.D2>0)) add('e',n.id,'Enter the outlet diameter.');
+    if(t==='reducer' && p.D2mode!=='auto' && !(+p.D2>0)) add('e',n.id,'Enter the outlet diameter, or set Outlet ID to From next pipe.');
     if(t==='orifice' && p.spec==='beta' && !(+p.beta>0 && +p.beta<1)) add('e',n.id,'β ratio must be between 0 and 1.');
     if(t==='orifice' && p.spec==='bore' && !(+p.d>0)) add('e',n.id,'Enter the bore diameter.');
     if(t==='reducer' && p.Dmode==='override' && !(+p.D1>0)) add('e',n.id,'Enter the inlet diameter, or set Inlet ID to From pipe.');
@@ -492,12 +492,17 @@ function solve(model, set){
   const DinM={};
   function downD(n, seen){ for(const l of outL[n.id]){ const t=byId[l.to]; if(seen.has(t.id)) continue; seen.add(t.id);
       if(t.type==='segment') return +t.p.D; if(t.type==='reducer') continue; const d=downD(t,seen); if(d) return d; } return null; }
+  // reducer outlet ID: entered, or taken from the next pipe segment along a single path
+  function nextD(n, seen){ const ol=outL[n.id]; if(ol.length!==1) return null; const t=byId[ol[0].to]; if(!t||seen.has(t.id)) return null; seen.add(t.id);
+    if(t.type==='segment') return +t.p.D; if(t.type==='reducer'||t.type==='sink') return null; return nextD(t,seen); }
+  const D2M={};
+  function D2of(n){ if(n.p.D2mode!=='auto') return +n.p.D2; if(!(n.id in D2M)) D2M[n.id]=nextD(n,new Set([n.id])); return D2M[n.id]; }
   function Din(n, seen=new Set()){
     if(n.id in DinM) return DinM[n.id]; if(seen.has(n.id)) return null; seen.add(n.id);
     let d=null;
     if(n.type==='segment') d=+n.p.D;
     else if(n.type==='reducer' && n.p.Dmode==='override' && +n.p.D1>0) d=+n.p.D1;
-    else { const il=inL[n.id][0]; if(il){ const u=byId[il.from]; d = u.type==='segment'?+u.p.D : u.type==='reducer'?+u.p.D2 : (ELEM.has(u.type)||MERGE.has(u.type)) ? Din(u,seen) : null; } }
+    else { const il=inL[n.id][0]; if(il){ const u=byId[il.from]; d = u.type==='segment'?+u.p.D : u.type==='reducer'?D2of(u) : (ELEM.has(u.type)||MERGE.has(u.type)) ? Din(u,seen) : null; } }
     if(!d) d=downD(n,new Set([n.id]));
     return DinM[n.id]=d;
   }
@@ -506,15 +511,16 @@ function solve(model, set){
     let v=null; if(n.type==='segment') v=+n.p.eps>=0?+n.p.eps:null;
     else { const il=inL[n.id][0]; if(il){ const u=byId[il.from]; if(ELEM.has(u.type)||MERGE.has(u.type)) v=epsIn(u,seen); } }
     return epsM[n.id]=v; }
-  els.forEach(e=>{ e.Din=Din(e.n); e.Dout = e.n.type==='reducer' ? +e.n.p.D2 : e.Din; const ev=epsIn(e.n); e.eps = ev!=null ? ev : 0.045;
+  els.forEach(e=>{ e.Din=Din(e.n); e.Dout = e.n.type==='reducer' ? D2of(e.n) : e.Din; const ev=epsIn(e.n); e.eps = ev!=null ? ev : 0.045;
     if(!(e.Din>0) && !['pump','fixed','cv'].includes(e.n.type)) add('e',e.n.id,'No pipe diameter found. Connect a Pipe segment next to this unit.');
+    if(e.n.type==='reducer' && e.n.p.D2mode==='auto' && !(e.Dout>0)) add('e',e.n.id,'No pipe found after this unit to take the outlet ID from. Connect a Pipe segment after it, or set Outlet ID to Enter.');
     if(e.n.type==='orifice' && e.n.p.spec==='bore' && e.Din>0 && !(+e.n.p.d < e.Din)) add('e',e.n.id,`The bore (${fq('D',+e.n.p.d,1)}) must be smaller than the pipe ID (${fq('D',e.Din,1)}).`);
     // diameter change straight from one unit to the next with no reducer
     const il=inL[e.n.id][0], u=il&&byId[il.from];
-    if(u && (u.type==='segment'||u.type==='reducer') && e.n.type!=='reducer'){ const du = u.type==='segment'?+u.p.D : u.type==='reducer'?+u.p.D2 : Din(u);
+    if(u && (u.type==='segment'||u.type==='reducer') && e.n.type!=='reducer'){ const du = u.type==='segment'?+u.p.D : u.type==='reducer'?D2of(u) : Din(u);
       const dn = e.n.type==='segment' ? +e.n.p.D : null;
       if(du>0 && dn>0 && Math.abs(du-dn)>0.5) add('w',e.n.id,`The pipe changes from ${fq('D',du,1)} to ${fq('D',dn,1)} here with no reducer, so the size change is not counted.`,'insRed'); }
-    if(e.n.type==='reducer' && e.n.p.Dmode==='override' && u && ELEM.has(u.type)){ const du = u.type==='segment'?+u.p.D : u.type==='reducer'?+u.p.D2 : Din(u);
+    if(e.n.type==='reducer' && e.n.p.Dmode==='override' && u && ELEM.has(u.type)){ const du = u.type==='segment'?+u.p.D : u.type==='reducer'?D2of(u) : Din(u);
       if(du>0 && Math.abs(du-(+e.n.p.D1))>0.5) add('w',e.n.id,`Inlet ID ${fq('D',+e.n.p.D1,1)} does not match the upstream pipe (${fq('D',du,1)}).`); }
   });
 
@@ -783,7 +789,7 @@ function defaults(type){
     case 'segment': return {L:100, allow:0, D:96.8, eps:0.015, dz:0, entr:'none', exit:false, fits:{ell90_lr:2}};
     case 'splitter': return {bal:'fixed', mode:'pct'};
     case 'combiner': return {};
-    case 'reducer': return {Dmode:'auto', D1:'', D2:80, type:'conc', angle:30};
+    case 'reducer': return {Dmode:'auto', D1:'', D2mode:'auto', D2:'', type:'conc', angle:30};
     case 'pump': return {hMode:'fixed', H:30, H0:'', Qr:'', Hr:'', Qx:'', Hx:'', speed:100, eff:'', NPSHr:''};
     case 'cv': return {cvMode:'fixed', Cv:50, Qset:'', Pset:'', Cvr:'', FL:0.9};
     case 'orifice': return {spec:'bore', d:50, beta:0.7, t:''};
@@ -850,6 +856,7 @@ function normalize(m){
     if(n.type==='splitter'||n.type==='combiner'){ delete p.tee; delete p.teeType; delete p.run; }
     if(n.type==='reducer' && p.type==null) p.type = (+p.angle===180||p.angle==null) ? 'sudden' : 'custom';
     if(n.type==='orifice' && p.spec==null) p.spec='beta';
+    if(n.type==='reducer' && p.D2mode==null) p.D2mode='override';   // diagrams saved before From next pipe existed keep their entered outlet ID
     if(n.type==='pump') delete p.npar;
     n.p=Object.assign(defaults(n.type), p); });
   return m;
@@ -864,7 +871,7 @@ function example(){
   const cm=N('combiner','Suction header',400,150);
   const ss=N('segment','Pump suction',600,150,{L:6,D:123.4,fits:{ell90_lr:1}});
   const pu=N('pump','Transfer pump',800,150,{hMode:'find',H:20,eff:72,NPSHr:3});
-  const rd=N('reducer','Pump reducer',1000,150,{D2:110.2,type:'conc'});
+  const rd=N('reducer','Pump reducer',1000,150,{D2mode:'auto',D2:110.2,type:'conc'});
   const sd=N('segment','Discharge header',1200,150,{L:150,allow:10,D:110.2,dz:4,fits:{chk_swing:1,vg_full:1,ell90_lr:3}});
   const sp=N('splitter','Header split',1400,150,{bal:'fixed',mode:'pct'});
   const s1=N('segment','Line to A',1600,40,{L:80,allow:10,D:110.2,dz:2,fits:{teer_flg:1,ell90_lr:4,vg_full:1}});
@@ -1020,8 +1027,9 @@ function subText(n){
     case 'combiner': { const ni=S.links.filter(l=>l.to===n.id).length; return `${ni} inlet${ni===1?'':'s'}`; }
     case 'cv': return p.cvMode==='flow' ? `FC ${fu('Q',parseFloat(p.Qset),1)}` : p.cvMode==='pdown' ? `PC out ${fu('Pg',parseFloat(p.Pset),1)}` : p.cvMode==='pup' ? `BP in ${fu('Pg',parseFloat(p.Pset),1)}` : p.cvMode==='find' ? 'Cv: size to match' : `Cv ${fmt(+p.Cv,1)}`;
     case 'orifice': return p.spec==='find' ? 'Bore: find' : p.spec==='bore' ? `Bore ${fu('D',+p.d,1)}` : `β ${fmt(+p.beta,3)}`;
-    case 'reducer': { const r=R&&R.ok&&R.res[n.id]; const d1 = p.Dmode==='override' ? +p.D1 : (r?r.D:null); const kind = d1 ? (+p.D2<d1?'Reducer':+p.D2>d1?'Expander':'Same size') : 'Reducer';
-      return d1 ? `${kind} ${fuv('D',d1,1)}→${fuv('D',+p.D2,1)}` : `${kind} to ${fu('D',+p.D2,1)}`; }
+    case 'reducer': { const r=R&&R.ok&&R.res[n.id]; const d1 = p.Dmode==='override' ? +p.D1 : (r?r.D:null); const d2 = p.D2mode==='auto' ? (r?r.Dout:null) : +p.D2;
+      const kind = d1&&d2 ? (d2<d1?'Reducer':d2>d1?'Expander':'Same size') : 'Reducer';
+      return d1&&d2 ? `${kind} ${fuv('D',d1,1)}→${fuv('D',d2,1)}` : d2 ? `${kind} to ${fu('D',d2,1)}` : 'Sizes from the pipes'; }
     case 'pump': return p.hMode==='find' ? 'Head: find' : p.hMode==='curve' ? `Curve · ${fmt(+p.speed||100,0)}% speed` : `Head ${fu('H',+p.H,1)}`;
     case 'fixed': return fu('dP',+p.dP,1);
     case 'userk': return `K ${fmt(+p.K,2)}`;
@@ -1189,7 +1197,7 @@ const FIELDS = {
     {key:'exit',label:'Exit loss at end (K = 1)',kind:'check'} ],
   splitter:[ {key:'bal',label:'Outlet flows',kind:'select',opts:[['fixed','Fixed shares'],['balanced','Balanced by Run']]} ],
   combiner:[], junction:[],
-  reducer:[ md('Dmode','D1','Inlet ID','D',[['auto','From pipe'],['override','Enter']],'D'), num('D2','Outlet ID','D'),
+  reducer:[ md('Dmode','D1','Inlet ID','D',[['auto','From pipe'],['override','Enter']],'D'), md('D2mode','D2','Outlet ID','D',[['auto','From next pipe'],['override','Enter']],'Dout'),
     {key:'type',label:'Type',kind:'select',opts:[['sudden','Sudden change'],['conc','Concentric fitting, about 30°'],['custom','Custom included angle']]},
     Object.assign(num('angle','Included angle','deg'),{show:n=>n.p.type==='custom'}) ],
   pump:[ {key:'hMode',label:'Head from',kind:'select',opts:[['fixed','Fixed value'],['find','Find (Run sizes it)'],['curve','Pump curve']]},
@@ -1212,7 +1220,7 @@ const FIELDS = {
   userk:[ num('K','Resistance coefficient K','–') ],
   fitting:[ num('n','Quantity','no.') ],
 };
-function isSolvedMode(n,f){ const m=n.p[f.mkey]; if(f.mkey==='hMode'||f.mkey==='cvMode') return m==='find'; if(f.mkey==='Dmode') return m!=='override'; if(n.type==='sink') return m!=='fixed'; return m==='solved'; }
+function isSolvedMode(n,f){ const m=n.p[f.mkey]; if(f.mkey==='hMode'||f.mkey==='cvMode') return m==='find'; if(f.mkey==='Dmode') return m!=='override'; if(f.mkey==='D2mode') return m==='auto'; if(n.type==='sink') return m!=='fixed'; return m==='solved'; }
 const CURVEQ={H0:'H',Hr:'H',Hx:'H',Qr:'Q',Qx:'Q'};
 function fieldQ(n,k){ if(n.type==='pump' && CURVEQ[k]) return CURVEQ[k]; const f=(FIELDS[n.type]||[]).find(x=>x.key===k); return f&&isQ(f.unit) ? f.unit : null; }
 function fieldHtml(n,f){
@@ -1249,7 +1257,7 @@ function helperCalc(){
   if(mat==='pe'){ const od=+$('#h-od').value, sdr=+$('#h-sdr').value, e=Math.ceil(od/sdr*10)/10; id=od-2*e; note=`Wall ${fu('D',e,1)} (minimum, OD/SDR). Mean wall is about 5–10% thicker; edit the ID if you need it.`; }
   if(mat==='steel'){ const dn=$('#h-dn').value, sc=$('#h-sch').value; id=(STEEL[sc]||{})[dn]||null; note= id?'ASME B36.10/B36.19 ID.':`No ${sc} wall for DN${dn}.`; }
   $('#h-out').innerHTML = id? `ID ${fu('D',id,2)}. ${note} <button class="btn" id="h-apply">Use this ID</button>` : note;
-  const b=$('#h-apply'); if(b) b.onclick=()=>{ const n=findSel(); pushUndo(); n.p[n.type==='reducer'?'D2':'D']=+id.toFixed(2); changed(true); };
+  const b=$('#h-apply'); if(b) b.onclick=()=>{ const n=findSel(); pushUndo(); if(n.type==='reducer'){ n.p.D2=+id.toFixed(2); n.p.D2mode='override'; } else n.p.D=+id.toFixed(2); changed(true); };
 }
 function fitEditor(n){
   const rows=Object.entries(n.p.fits||{}).filter(([k])=>FIT[k]);
@@ -1272,7 +1280,7 @@ function splitEditor(n){
 function insertReducer(segId){
   const seg=nodeById(segId), il=S.links.find(l=>l.to===segId); if(!seg||!il) return; pushUndo();
   const x0=seg.x, y0=seg.y; downstream(segId).forEach(id=>{ const m=nodeById(id); if(m) m.x+=NW+44; });
-  const r=newNode('reducer', x0, y0); r.p.D2=+seg.p.D; il.to=r.id; S.links.push({id:uid(),from:r.id,to:segId});
+  const r=newNode('reducer', x0, y0); r.p.D2=+seg.p.D; r.p.D2mode='auto'; il.to=r.id; S.links.push({id:uid(),from:r.id,to:segId});
   sel={kind:'node',id:r.id}; changed(true);
 }
 function curvePlot(n,r){
@@ -1420,6 +1428,7 @@ function renderPanel(){
           if(inp.value==='flow' && (n.p.Qset===''||n.p.Qset==null) && r) n.p.Qset=+Math.abs(r.Q).toFixed(2);
           if(inp.value==='pdown' && (n.p.Pset===''||n.p.Pset==null) && r) n.p.Pset=+r.Pout.toFixed(1);
           if(inp.value==='pup' && (n.p.Pset===''||n.p.Pset==null) && r) n.p.Pset=+r.Pin.toFixed(1); }
+        if((k==='Dmode'||k==='D2mode') && n.p[k]==='override'){ const r=R&&R.ok&&R.res[n.id], key=k==='Dmode'?'D1':'D2', v=r&&(k==='Dmode'?r.D:r.Dout); if(v>0) n.p[key]=+(+v).toFixed(2); }
         if(/Mode$/.test(k)){ const f=(FIELDS[n.type]||[]).find(x=>x.mkey===k); const r=R&&R.ok&&R.res[n.id]; if(f && r && r[f.solvedKey]!=null && !isSolvedMode(n,f) && (n.p[f.key]===''||n.p[f.key]==null)) n.p[f.key]=+(+r[f.solvedKey]).toFixed(3); }
         changed(true); return; }
       let v=parseFloat(inp.value); const fq0=fieldQ(n,k); if(fq0 && isFinite(v)) v=fromU(fq0,v);
@@ -1582,7 +1591,7 @@ function repInputs(n){
   (FIELDS[n.type]||[]).forEach(f=>{
     if(f.show && !f.show(n)) return; const v=n.p[f.key];
     if(f.kind==='num') P(f.label, repNum(f.unit,v));
-    else if(f.kind==='mode'){ if(isSolvedMode(n,f)) P(f.label, f.mkey==='Dmode'?'From pipe':'Solved by Run'); else P(f.label, repNum(f.unit,v)+(f.mkey==='Dmode'?'':' (fixed)')); }
+    else if(f.kind==='mode'){ if(isSolvedMode(n,f)) P(f.label, f.mkey==='Dmode'?'From pipe':f.mkey==='D2mode'?'From next pipe':'Solved by Run'); else P(f.label, repNum(f.unit,v)+(f.mkey==='Dmode'||f.mkey==='D2mode'?'':' (fixed)')); }
     else if(f.kind==='sn') P(f.label, f.solvedIf(n)?'Found by Run':repNum(f.unit,v));
     else if(f.kind==='select'){ const o=f.opts.find(x=>x[0]===v); P(f.label, o?o[1]:(v??'–')); }
     else if(f.kind==='check') P(f.label, v===true?'Yes':'No');
