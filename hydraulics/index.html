@@ -1597,17 +1597,16 @@ function repDiagram(){
   if(!S.nodes.length) return '<p class="note">Empty diagram.</p>';
   const x0=Math.min(...S.nodes.map(n=>n.x))-20, x1=Math.max(...S.nodes.map(n=>n.x+nodeW(n)))+20, y0=Math.min(...S.nodes.map(n=>n.y))-20, y1=Math.max(...S.nodes.map(n=>n.y+lay(n).H))+20;
   // never draw larger than the app does at 100 % zoom, so a small network is not blown up to the page width
-  return `<div class="dwrap"><svg class="rdiag" viewBox="${x0} ${y0} ${x1-x0} ${y1-y0}" style="max-width:${Math.round(x1-x0)}px" xmlns="http://www.w3.org/2000/svg"><defs><marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker></defs><g>${$('#links').innerHTML}${$('#nodes').innerHTML}</g></svg></div>`;
+  return `<div class="dwrap"><svg class="rdiag" viewBox="${x0} ${y0} ${x1-x0} ${y1-y0}" preserveAspectRatio="xMidYMid meet" style="max-width:${Math.round(x1-x0)}px" xmlns="http://www.w3.org/2000/svg"><defs><marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker></defs><g>${$('#links').innerHTML}${$('#nodes').innerHTML}</g></svg></div>`;
 }
 function repTab(t){ const keep=tab; tab=t; renderDrawer(); const h=$('#dbody').innerHTML; tab=keep; return h; }
 function repCase(land){
   let h=`<p class="rstatus">Status: ${esc(R.status)}${R.ok?` · ${R.checks.filter(c=>c.sev==='e').length} errors, ${R.checks.filter(c=>c.sev==='w').length} warnings`:''}</p>`;
   const dg=`<div class="dpage"><h3>Diagram</h3>${repDiagram()}</div>`;
-  if(land) h+=dg;
+  h+=dg;
   h+=`<h3>Line summary</h3>${repTab('lines')}`;
   h+=`<h3>Values found by Run</h3>${repTab('solved')}`;
   h+=`<h3>Checks</h3>${repTab('checks')}`;
-  if(!land) h+=dg;
   const order=(R.order||[]).concat(S.nodes.map(n=>n.id)).filter((v,i,a)=>a.indexOf(v)===i);
   h+=`<h3>Unit inputs and results</h3><div class="units">${order.map(id=>{ const n=nodeById(id); if(!n) return ''; const T=TYPES[n.type];
     return `<div class="ucard"><div class="uh"><b>${esc(n.name)}</b><span>${T.label}</span></div><div class="ucols"><div><div class="sect">Inputs</div>${repInputs(n)}</div><div>${resultHtml(n)||''}</div></div></div>`; }).join('')}</div>`;
@@ -1631,7 +1630,7 @@ function buildReportParts(o){
   const pageCss=`@page{size:${sz} ${land?'landscape':'portrait'};margin:14mm 12mm 16mm 12mm;
     @bottom-left{content:"${title.replace(/["\\]/g,'')}";font:8pt "IBM Plex Sans",sans-serif;color:#5b6b7a}
     @bottom-right{content:"Page " counter(page) " of " counter(pages);font:8pt "IBM Plex Sans",sans-serif;color:#5b6b7a}}
-  ${land?'':`@page land{size:${sz} landscape;margin:12mm 12mm 14mm 12mm}`}`;
+`;
   const css=`${appCss}
   :host,.paper{--bg:#ffffff;--surface:#ffffff;--ink:#16212c;--muted:#5b6b7a;--line:#cfd7df;--accent:#0b6e99;--accent-soft:#dcedf5;--grid:#dde3e9;
     --ok:#1f7a4d;--warn:#a86400;--bad:#b3261e;--warn-soft:#fff1d9;--bad-soft:#fde4e2;
@@ -1645,12 +1644,12 @@ function buildReportParts(o){
   .paper{font:9.5pt/1.4 var(--font-body);color:#16212c;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .paper h1{font-size:17pt;margin:0 0 2mm} .paper h2{font-size:13pt;margin:0 0 2mm;color:var(--accent)} .paper h3{font-size:10.5pt;margin:5mm 0 1.5mm;border-bottom:1.5px solid var(--accent);padding-bottom:1mm;break-after:avoid}
   .brk{break-before:page}
-  ${land?'':`.dpage{page:land;break-before:page;break-after:page} .dpage svg.rdiag{max-height:170mm}`}
+  .dpage{break-inside:avoid}
   .rhead{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:1mm 5mm;font-size:9pt;border:1px solid var(--line);border-radius:2mm;padding:3mm 4mm;margin:0 0 6mm}
   .rhead span:nth-child(odd){color:var(--muted)}
   .rstatus{margin:0 0 2mm;color:var(--muted)}
   .dwrap{border:1px solid var(--line);border-radius:2mm;background:#fff;padding:2mm}
-  svg.rdiag{display:block;margin:0 auto;width:100%;height:auto;max-height:${land?120:150}mm}
+  svg.rdiag{display:block;margin:0 auto;width:100%;height:auto;max-height:${land?120:110}mm}
   svg.rdiag .hit,svg.rdiag .spare,svg.rdiag .nspare{display:none}
   svg.rdiag .link text{stroke:#fff}
   .paper table{font-size:7.5pt;break-inside:auto} .paper th{position:static!important;font-size:7pt;white-space:normal} .paper td,.paper td.l{font-size:7.5pt} .paper th,.paper td{padding:2px 4px}
