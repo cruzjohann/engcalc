@@ -769,7 +769,7 @@ const TYPES = {
   segment:{label:'Pipe segment', sub:'Pipe run with its fittings', pre:'Segment'},
   splitter:{label:'Splitter', sub:'Divides flow', pre:'Splitter'},
   combiner:{label:'Combiner', sub:'Joins flows', pre:'Combiner'},
-  reducer:{label:'Reducer / expander', sub:'Diameter change', pre:'Reducer'},
+  reducer:{label:'Reducer / expander', sub:'Size change or coupling', pre:'Reducer'},
   pump:{label:'Pump', sub:'Adds head', pre:'Pump'},
   cv:{label:'Control valve', sub:'Cv', pre:'CV'},
   orifice:{label:'Orifice plate', sub:'Thin, sharp-edged', pre:'Orifice'},
@@ -845,7 +845,7 @@ function symKey(n){ if(n.type!=='reducer') return n.type; const k=redKind(n); re
 function nextNameP(pre){ const used=new Set(S.nodes.map(n=>n.name)); let i=1; while(used.has(`${pre} ${i}`)) i++; return `${pre} ${i}`; }
 // reducers keep a name that matches what they do (Reducer / Expander) until the user renames them
 function autoNameReducers(){
-  S.nodes.forEach(n=>{ if(n.type!=='reducer' || !n.autoName) return; const k=redKind(n), pre = k==='exp'?'Expander':k==='red'?'Reducer':null;
+  S.nodes.forEach(n=>{ if(n.type!=='reducer' || !n.autoName) return; const k=redKind(n), pre = k==='exp'?'Expander':k==='red'?'Reducer':k==='same'?'Coupling':null;
     if(!pre || n.name.startsWith(pre+' ')) return; n.name=nextNameP(pre);
     if(sel&&sel.kind==='node'&&sel.id===n.id){ const f=$('#f-name'), h=$('#panel h3'); if(f) f.value=n.name; if(h) h.textContent=n.name; } }); }
 function solveNow(){ R=solve(S,S.set); return R; }
@@ -882,7 +882,7 @@ function normalize(m){
       for(;;){ const ol=(m.links||[]).filter(l=>l.from===cur.id); if(ol.length!==1) break; const t=m.nodes.find(x=>x.id===ol[0].to); if(!t||seen.has(t.id)) break; seen.add(t.id);
         if(t.type==='segment'){ d=+(t.p||{}).D; break; } if(t.type==='reducer'||t.type==='sink') break; cur=t; }
       p.D2mode = (d>0 && Math.abs(d-(+p.D2))<=0.5) ? 'auto' : 'override'; }
-    if(n.type==='reducer' && n.autoName==null && /^(Reducer|Expander) \d+$/.test(n.name||'')) n.autoName=true;
+    if(n.type==='reducer' && n.autoName==null && /^(Reducer|Expander|Coupling) \d+$/.test(n.name||'')) n.autoName=true;
     if(n.type==='pump') delete p.npar;
     n.p=Object.assign(defaults(n.type), p); });
   return m;
@@ -1054,8 +1054,8 @@ function subText(n){
     case 'cv': return p.cvMode==='flow' ? `FC ${fu('Q',parseFloat(p.Qset),1)}` : p.cvMode==='pdown' ? `PC out ${fu('Pg',parseFloat(p.Pset),1)}` : p.cvMode==='pup' ? `BP in ${fu('Pg',parseFloat(p.Pset),1)}` : p.cvMode==='find' ? 'Cv: size to match' : `Cv ${fmt(+p.Cv,1)}`;
     case 'orifice': return p.spec==='find' ? 'Bore: find' : p.spec==='bore' ? `Bore ${fu('D',+p.d,1)}` : `β ${fmt(+p.beta,3)}`;
     case 'reducer': { const {d1,d2}=redSizes(n);
-      const kind = d1&&d2 ? (d2<d1?'Reducer':d2>d1?'Expander':'Same size') : 'Reducer';
-      return d1&&d2 ? `${kind} ${fuv('D',d1,1)}→${fuv('D',d2,1)}` : d2 ? `${kind} to ${fu('D',d2,1)}` : 'Sizes from the pipes'; }
+      const kind = d1&&d2 ? (d2<d1?'Reducer':d2>d1?'Expander':'Coupling') : 'Reducer';
+      return d1&&d2 ? (kind==='Coupling' ? `Same size, ${fu('D',d1,1)}` : `${kind} ${fuv('D',d1,1)}→${fuv('D',d2,1)}`) : d2 ? `${kind} to ${fu('D',d2,1)}` : 'Sizes from the pipes'; }
     case 'pump': return p.hMode==='find' ? 'Head: find' : p.hMode==='curve' ? `Curve · ${fmt(+p.speed||100,0)}% speed` : `Head ${fu('H',+p.H,1)}`;
     case 'fixed': return fu('dP',+p.dP,1);
     case 'userk': return `K ${fmt(+p.K,2)}`;
