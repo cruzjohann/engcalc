@@ -52,7 +52,10 @@ Point matrix, state {q, h}: [[1, -jωCs], [0, 1]] with Cs = ρgV/(n·p). For a p
 on a closed end it agrees with the spring-and-mass frequency (water column on the gas spring, with the
 Rayleigh correction Cp/3) to 0.4% at 2 m³ of gas. In Example 8-2, 0.5 m³ of gas at the tee leaves the
 1.0 Hz resonance where it is, because the tee is a pressure node at that frequency; the same vessel at
-the valve moves it to 0.541 Hz. A separate method-of-characteristics model agrees within 0.3% on the
+the valve moves it to 0.541 Hz. With no losses the vessel only moves resonances, and it adds one of its
+own, so at some frequencies it makes the response worse. With 2 m³ at the valve and a linear resistance
+R in the vessel connection, the highest response up to 1.5 Hz falls from 0.8 to about 0.1 at R = 50 to
+75 s/m², close to 1/(ωCs) at the lowest resonance. A separate method-of-characteristics model agrees within 0.3% on the
 response at 0.667 Hz (1.6% on the smallest case) and finds the same shifted resonances.
 
 ## Notes

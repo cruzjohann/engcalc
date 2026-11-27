@@ -26,8 +26,12 @@ def Cs_gas(V, p=P_LINE, n=1.0):
     return rho * g * V / (n * p)
 
 
-def P_acc(Cs, w):
-    return np.array([[1, -1j * w * Cs], [0, 1]])
+def P_acc(Cs, w, R=0.0):
+    """Accumulator, optionally with a linear resistance R (s/m2) in its connection:
+    flow into the vessel = h / (R + 1/(j w Cs))."""
+    if R == 0.0:
+        return np.array([[1, -1j * w * Cs], [0, 1]])
+    return np.array([[1, -1.0 / (R + 1.0 / (1j * w * Cs))], [0, 1]])
 
 
 def pipe(p, L):
@@ -51,7 +55,7 @@ def segments(x_acc):
     return out
 
 
-def solve(f, Cs=0.0, x_acc=None, n_pts=0):
+def solve(f, Cs=0.0, x_acc=None, n_pts=0, R=0.0):
     """Head amplitude at the valve (hr = 2|h|/Ho); optionally |h| along the main line."""
     w = 2 * np.pi * f
     Fb = m.field_matrix(m.BRANCH, w)
@@ -62,7 +66,7 @@ def solve(f, Cs=0.0, x_acc=None, n_pts=0):
         elif s[0] == "tee":
             mats.append(np.array([[1, Fb[0, 1] / Fb[0, 0]], [0, 1]])); xs.append(xs[-1])
         else:
-            mats.append(P_acc(Cs, w)); xs.append(xs[-1])
+            mats.append(P_acc(Cs, w, R)); xs.append(xs[-1])
     U = np.eye(2)
     for M in mats:
         U = M @ U
@@ -82,8 +86,8 @@ def solve(f, Cs=0.0, x_acc=None, n_pts=0):
     return hr, np.array(x_out), np.array(h_out)
 
 
-def peaks(Cs=0.0, x_acc=None, f=np.linspace(0.02, 2.5, 25000)):
-    hr = np.array([solve(fi, Cs, x_acc) for fi in f])
+def peaks(Cs=0.0, x_acc=None, f=np.linspace(0.02, 2.5, 25000), R=0.0):
+    hr = np.array([solve(fi, Cs, x_acc, R=R) for fi in f])
     i = [j for j in range(1, len(f) - 1) if hr[j] > hr[j - 1] and hr[j] > hr[j + 1] and hr[j] > 0.05]
     return f[i], hr[i]
 
@@ -158,3 +162,42 @@ if __name__ == "__main__":
     a2.set_title("0.5 m³ of gas at 10.8 bar abs placed at each point (dotted lines: no accumulator)", fontsize=10)
     fig.tight_layout(); fig.savefig("accumulator_placement.png")
     np.savetxt("placement.csv", np.c_[xs, fr1, fr2], delimiter=",", fmt="%.4f", header="x,f1,f2")
+
+    # ---- Where the vessel makes it worse (0.5 m3, no losses)
+    Cs = Cs_gas(0.5)
+    print("\nForcing frequency: no vessel / vessel at valve / vessel at tee (0.5 m3)")
+    for fr in (0.255, 0.541, 4.189 / (2 * np.pi), 1.0):
+        print(f"  {fr:.3f} Hz: {solve(fr):.3f} / {solve(fr, Cs, L1 + L2):.3f} / {solve(fr, Cs, L1):.3f}")
+
+    # ---- Higher frequencies, up to 5 Hz (0.5 m3)
+    f5 = np.linspace(0.02, 5.0, 50000)
+    print("\nPeaks up to 5 Hz (all reach 0.8 in this lossless model), and typical hr between peaks, 2-5 Hz")
+    for name, cs_, xa_ in (("no vessel", 0.0, None), ("at the tee", Cs, L1), ("at the valve", Cs, L1 + L2)):
+        hr5 = np.array([solve(fi, cs_, xa_) for fi in f5])
+        pk = [f5[j] for j in range(1, len(f5) - 1) if hr5[j] > hr5[j - 1] and hr5[j] > hr5[j + 1] and hr5[j] > 0.05]
+        print(f"  {name:12s}: peaks {np.round(pk, 2)}, median hr 2-5 Hz {np.median(hr5[f5 >= 2]):.3f}")
+
+    # ---- Losses in the vessel connection: linear resistance R, 2 m3 at the valve
+    Cs2 = Cs_gas(2.0)
+    fg = np.linspace(0.02, 1.5, 3000)
+    print("\nHighest hr from 0.02 to 1.5 Hz, 2 m3 at the valve, resistance R in the connection")
+    Rs = np.array([0, 10, 20, 35, 50, 75, 100, 150, 200, 300, 400, 600, 800])
+    worst = []
+    for R in Rs:
+        hr = np.array([solve(fi, Cs2, L1 + L2, R=R) for fi in fg])
+        worst.append(hr.max())
+        print(f"  R = {R:4.0f} s/m2: {hr.max():.3f} at {fg[hr.argmax()]:.3f} Hz")
+    fpk = peaks(Cs2, L1 + L2, f=np.linspace(0.05, 0.4, 4000))[0][0]
+    print(f"  1/(w Cs) at the lowest resonance ({fpk:.3f} Hz): {1 / (2 * np.pi * fpk * Cs2):.0f} s/m2")
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(11, 4.4), dpi=150, gridspec_kw=dict(width_ratios=[2.2, 1]))
+    a1.plot(fg, [solve(fi) for fi in fg], "k--", lw=1.2, label="No vessel")
+    a1.plot(fg, [solve(fi, Cs2, L1 + L2) for fi in fg], "C1-", lw=1.3, label="2 m³ at the valve, no loss")
+    a1.plot(fg, [solve(fi, Cs2, L1 + L2, R=50.0) for fi in fg], "C2-", lw=2.0, label="2 m³ at the valve, R = 50 s/m²")
+    a1.set_xlim(0, 1.5); a1.set_ylim(0, 0.85); a1.grid(True, lw=0.4)
+    a1.set_xlabel("Forcing frequency (Hz)"); a1.set_ylabel(r"$h_r = 2|h|/H_o$ at valve")
+    a1.legend(loc="upper center", bbox_to_anchor=(0.5, -0.17), ncol=3, fontsize=8.5, frameon=False)
+    a1.set_title("Example 8-2: loss in the vessel connection", fontsize=10)
+    a2.plot(Rs, worst, "C2o-", lw=1.5, ms=4)
+    a2.set_xlabel("Connection resistance R (s/m²)"); a2.set_ylabel("Highest hr, 0 to 1.5 Hz")
+    a2.set_ylim(0, 0.85); a2.grid(True, lw=0.4); a2.set_title("There is a best size", fontsize=10)
+    fig.tight_layout(); fig.savefig("accumulator_damping.png")
