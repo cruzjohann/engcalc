@@ -9,6 +9,7 @@ M. H. Chaudhry, *Applied Hydraulic Transients*, 3rd ed., Springer, 2014.
 | `chaudhry_example_8_2.py` | The same calculation in Python, plus the frequency response plot. |
 | `appendix_d_check.py` | The two-pipe series system from Appendix D, compared row by row with the book's printed output. |
 | `free_gas_example_8_2.py` | Example 8-2 with free gas in the line. Wave speed from Eq. 9-18 (Section 9-5), then the same frequency response. |
+| `accumulator_moc_check.py` | Time-domain check (method of characteristics) of the accumulator results, with the full valve equation and gas law. |
 | `accumulator_example_8_2.py` | Accumulator (air chamber) point matrix (Problem 8-7), checked against a spring-and-mass formula, then placed at the tee, the valve and along the main line of Example 8-2. |
 
 ## Results
@@ -33,9 +34,10 @@ python3 chaudhry_example_8_2.py
 python3 appendix_d_check.py
 python3 free_gas_example_8_2.py
 python3 accumulator_example_8_2.py
+python3 accumulator_moc_check.py
 ```
 
-The Python scripts need `numpy`; the plot needs `matplotlib`.
+The Python scripts need `numpy`; the plots need `matplotlib`; the time-domain check needs `scipy`.
 
 ## Free gas
 
@@ -50,7 +52,8 @@ Point matrix, state {q, h}: [[1, -jωCs], [0, 1]] with Cs = ρgV/(n·p). For a p
 on a closed end it agrees with the spring-and-mass frequency (water column on the gas spring, with the
 Rayleigh correction Cp/3) to 0.4% at 2 m³ of gas. In Example 8-2, 0.5 m³ of gas at the tee leaves the
 1.0 Hz resonance where it is, because the tee is a pressure node at that frequency; the same vessel at
-the valve moves it to 0.541 Hz.
+the valve moves it to 0.541 Hz. A separate method-of-characteristics model agrees within 0.3% on the
+response at 0.667 Hz (1.6% on the smallest case) and finds the same shifted resonances.
 
 ## Notes
 
